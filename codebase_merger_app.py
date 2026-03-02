@@ -23,6 +23,15 @@ IGNORE_LIST = {
 }
 MAX_FILE_SIZE_MB = 10
 
+
+INCLUDE_EXTENSIONS = {
+    ".py",      # backend
+    ".js",      # frontend
+    ".html",
+    ".css",
+}
+
+
 CACHE_DIR = os.path.join(os.path.expanduser("~"), ".codebase_merger", "cache")
 HISTORY_FILE = os.path.join(os.path.expanduser("~"), ".codebase_merger", "history.json")
 os.makedirs(CACHE_DIR, exist_ok=True)
@@ -111,8 +120,11 @@ def collect_py_files(path, visited=None):
             continue
         if entry.is_dir(follow_symlinks=False):
             files.extend(collect_py_files(entry.path, visited))
-        elif entry.name.endswith(".py"):
-            files.append(entry.path)
+        else:
+            ext = os.path.splitext(entry.name)[1].lower()
+            if ext in INCLUDE_EXTENSIONS:
+                files.append(entry.path)
+
     return files
 
 
