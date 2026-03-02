@@ -105,23 +105,18 @@ def build_tree_lines(path, prefix="", visited=None):
 def collect_py_files(path, visited=None):
     if visited is None:
         visited = set()
-
     real_path = os.path.realpath(path)
     if real_path in visited:
         return []
-
     visited.add(real_path)
     files = []
-
     try:
         entries = sorted(os.scandir(path), key=lambda e: e.name.lower())
     except PermissionError:
         return []
-
     for entry in entries:
         if is_ignored(entry.name):
             continue
-
         if entry.is_dir(follow_symlinks=False):
             files.extend(collect_py_files(entry.path, visited))
         else:
@@ -323,7 +318,17 @@ class App(ctk.CTk):
             fg_color="#6366f1", hover_color="#4f46e5",
             corner_radius=10, command=self._run
         )
-        self.run_btn.pack(fill="x", padx=20, pady=(0, 10))
+        self.run_btn.pack(fill="x", padx=20, pady=(0, 6))
+
+        # 저장 폴더 열기 버튼
+        ctk.CTkButton(
+            left, text="📂  저장 폴더 열기", height=32,
+            font=ctk.CTkFont(size=12),
+            fg_color="#1e1e2e", hover_color="#252538",
+            border_width=1, border_color="#2d2d3d",
+            text_color="#94a3b8",
+            corner_radius=8, command=self._open_output_folder
+        ).pack(fill="x", padx=20, pady=(0, 10))
 
         # 로그 레이블
         log_header = ctk.CTkFrame(left, fg_color="transparent")
@@ -413,6 +418,21 @@ class App(ctk.CTk):
         p = filedialog.askdirectory(title="출력 폴더 선택")
         if p:
             self.output_var.set(p)
+
+    def _open_output_folder(self):
+        p = self.output_var.get().strip()
+        if not p:
+            messagebox.showwarning("알림", "출력 폴더가 설정되지 않았습니다.")
+            return
+        if not os.path.isdir(p):
+            messagebox.showwarning("알림", f"폴더가 존재하지 않습니다:\n{p}")
+            return
+        if sys.platform == "win32":
+            os.startfile(p)
+        elif sys.platform == "darwin":
+            subprocess.Popen(["open", p])
+        else:
+            subprocess.Popen(["xdg-open", p])
 
     # ── 로그 ─────────────────────────────────────────────────────────────────
 
