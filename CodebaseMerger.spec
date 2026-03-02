@@ -5,7 +5,7 @@ a = Analysis(
     ['codebase_merger_app.py'],
     pathex=[],
     binaries=[],
-    datas=[('C:\\Users\\blue\\Desktop\\project\\System Trading\\Merge_Code4Gemini\\build_env\\Lib\\site-packages\\customtkinter', 'customtkinter')],
+    datas=[('D:\\Daeheon\\Study\\CodeMerge4AI\\build_env\\lib\\site-packages\\customtkinter', 'customtkinter')],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},
