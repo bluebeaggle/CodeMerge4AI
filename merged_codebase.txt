@@ -1,52 +1,22 @@
 ================================================================================
 MERGED CODEBASE
-Generated: 2026-03-02 15:16:27.294655
-Root Folder: C:/Users/blue/Desktop/project/System Trading/Fake_Trading/tradingViewCustom/backend/server
+Generated: 2026-03-02 16:08:25.757206
+Root Folder: C:/Users/blue/Desktop/project/System Trading/Fake_Trading/tradingViewCustom/frontend
 ================================================================================
 
 PROJECT STRUCTURE
 ================================================================================
 
-📂 server
-├── 📁 api
-│   ├── 📄 __init__.py
-│   ├── 📄 routes_health.py
-│   ├── 📄 routes_history.py
-│   ├── 📄 routes_trading.py
-│   └── 📄 routes_ws.py
-├── 📁 core
-│   ├── 📄 __init__.py
-│   ├── 📄 config.py
-│   └── 📄 executors.py
-├── 📁 indicators
-│   ├── 📄 base.py
-│   ├── 📄 registry.py
-│   └── 📄 sma.py
-├── 📁 models
-│   ├── 📄 __init__.py
-│   ├── 📄 candle.py
-│   └── 📄 trading.py
-├── 📁 services
-│   ├── 📁 trading
-│   │   ├── 📄 __init__.py
-│   │   ├── 📄 base.py
-│   │   └── 📄 memory_service.py
-│   ├── 📄 __init__.py
-│   ├── 📄 history_base.py
-│   ├── 📄 history_dummy.py
-│   ├── 📄 history_factory.py
-│   ├── 📄 history_feather.py
-│   ├── 📄 price_cache.py
-│   └── 📄 ws_manager.py
-├── 📁 workers
-│   ├── 📄 __init__.py
-│   ├── 📄 base.py
-│   ├── 📄 binance_worker.py
-│   ├── 📄 random_worker.py
-│   └── 📄 registry.py
-├── 📄 __init__.py
-├── 📄 main.py
-└── 📄 main_dependencies.py
+📂 frontend
+├── 📁 css
+│   ├── 📄 layout.css
+│   └── 📄 theme.css
+├── 📁 js
+│   ├── 📄 chart_client.js
+│   ├── 📄 data_client.js
+│   ├── 📄 main.js
+│   └── 📄 ui_controller.js
+└── 📄 index.html
 
 
 ================================================================================
@@ -55,1110 +25,541 @@ PYTHON FILE CONTENTS
 
 
 ============================================================
-## FILE PATH: C:/Users/blue/Desktop/project/System Trading/Fake_Trading/tradingViewCustom/backend/server\__init__.py
+## FILE PATH: C:/Users/blue/Desktop/project/System Trading/Fake_Trading/tradingViewCustom/frontend\css\layout.css
 ============================================================
 
-"""Runtime-safe package path initialization for `server`.
+/* ## frontend/css/layout.css */
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
 
-This helps uvicorn reloader/app-dir subprocesses resolve `server.*` modules
-consistently on different environments (including Windows + watchfiles).
-"""
+#app-container {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    overflow: hidden;
+}
 
-# from pathlib import Path
-# from pkgutil import extend_path
+#app-header {
+    height: var(--header-height);
+    background-color: var(--bg-color-surface);
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 20px;
+}
 
-# __path__ = extend_path(__path__, __name__)  # type: ignore[name-defined]
+#main-nav .tab-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-color-muted);
+    padding: 0 15px;
+    height: var(--header-height);
+    cursor: pointer;
+    font-size: 14px;
+    transition: color 0.2s, border-bottom 0.2s;
+}
 
-# _current_pkg_dir = Path(__file__).resolve().parent
-# _repo_root_server_dir = _current_pkg_dir.parents[1] / "server"
+#main-nav .tab-btn.active {
+    color: var(--accent-color);
+    border-bottom: 2px solid var(--accent-color);
+}
 
-# for candidate in (_current_pkg_dir, _repo_root_server_dir):
-#     candidate_str = str(candidate)
-#     if candidate.exists() and candidate_str not in __path__:
-#         __path__.append(candidate_str)
+#app-main {
+    flex: 1;
+    position: relative;
+}
 
+/* 탭 전환 로직 (View Rendering) */
+.view-section {
+    display: none; /* 기본적으로 숨김 */
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    flex-direction: column;
+}
 
-============================================================
-## FILE PATH: C:/Users/blue/Desktop/project/System Trading/Fake_Trading/tradingViewCustom/backend/server\api\__init__.py
-============================================================
+.view-section.active {
+    display: flex; /* 활성화된 탭만 표시 */
+}
 
+/* 다중 차트 Grid 시스템 */
+#view-trading .toolbar {
+    height: var(--toolbar-height);
+    background-color: var(--bg-color-surface);
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    align-items: center;
+    padding: 0 10px;
+}
 
+#chart-grid-container {
+    flex: 1;
+    display: grid;
+    gap: 2px;
+    background-color: var(--border-color); /* 그리드 선 역할 */
+}
 
-============================================================
-## FILE PATH: C:/Users/blue/Desktop/project/System Trading/Fake_Trading/tradingViewCustom/backend/server\api\routes_health.py
-============================================================
+/* 레이아웃 분할 클래스 (JS에서 제어) */
+.grid-layout-single { grid-template-columns: 1fr; grid-template-rows: 1fr; }
+.grid-layout-split-h { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr; }
+.grid-layout-split-v { grid-template-columns: 1fr; grid-template-rows: 1fr 1fr; }
+.grid-layout-quad { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; }
 
-from fastapi import APIRouter
-
-router = APIRouter()
-
-
-@router.get("/")
-async def health() -> dict:
-    return {"status": "ok"}
-
-
-============================================================
-## FILE PATH: C:/Users/blue/Desktop/project/System Trading/Fake_Trading/tradingViewCustom/backend/server\api\routes_history.py
-============================================================
-
-from fastapi import APIRouter, Depends, Query
-
-from ..core.config import settings
-from ..main_dependencies import get_history_provider, get_indicator_results
-from ..services.history_base import HistoryProvider
-from ..services.history_dummy import DummyHistoryProvider
-
-router = APIRouter(prefix="/api")
-
-
-@router.get("/history")
-async def get_history(
-    source: str = Query(default="auto", pattern="^(auto|dummy)$"),
-    limit: int = Query(default=settings.history_limit, ge=1, le=settings.history_max_limit),
-    provider: HistoryProvider = Depends(get_history_provider),
-) -> list[dict]:
-    """Step 9/13-ready history endpoint.
-
-    - source=auto: current provider (feather if available, otherwise dummy)
-    - source=dummy: force dummy payload
-    - limit: caller-controlled history length (bounded)
-    """
-    if source == "dummy":
-        # Step 9 요구사항: dummy source는 항상 3개 캔들 고정 응답
-        candles = await DummyHistoryProvider().get_recent(limit=3)
-    else:
-        candles = await provider.get_recent(limit=limit)
-    return [c.model_dump() for c in candles]
-
-
-@router.get("/indicators")
-async def get_indicators(results: dict = Depends(get_indicator_results)) -> dict:
-    return results
-
-
-============================================================
-## FILE PATH: C:/Users/blue/Desktop/project/System Trading/Fake_Trading/tradingViewCustom/backend/server\api\routes_trading.py
-============================================================
-
-from fastapi import APIRouter, Depends
-
-from ..main_dependencies import get_trading_service
-from ..models.trading import AccountSnapshot, OrderCreateRequest, OrderRecord, SessionCreateRequest, SessionCreateResponse
-from ..services.trading.base import TradingService
-
-router = APIRouter(prefix="/api")
-
-
-@router.post("/session", response_model=SessionCreateResponse)
-async def create_session(
-    payload: SessionCreateRequest,
-    trading_service: TradingService = Depends(get_trading_service),
-) -> SessionCreateResponse:
-    return trading_service.create_session(payload)
-
-
-@router.get("/account/{session_id}", response_model=AccountSnapshot)
-async def get_account(
-    session_id: str,
-    trading_service: TradingService = Depends(get_trading_service),
-) -> AccountSnapshot:
-    return trading_service.get_account(session_id)
-
-
-@router.post("/order/{session_id}", response_model=OrderRecord)
-async def create_order(
-    session_id: str,
-    payload: OrderCreateRequest,
-    trading_service: TradingService = Depends(get_trading_service),
-) -> OrderRecord:
-    return trading_service.create_order(session_id, payload)
-
-
-@router.get("/orders/{session_id}", response_model=list[OrderRecord])
-async def list_orders(
-    session_id: str,
-    trading_service: TradingService = Depends(get_trading_service),
-) -> list[OrderRecord]:
-    return trading_service.list_orders(session_id)
-
+/* 동적으로 생성될 차트 래퍼 */
+.chart-pane {
+    background-color: var(--bg-color-base);
+    position: relative;
+    width: 100%;
+    height: 100%;
+}
 
 ============================================================
-## FILE PATH: C:/Users/blue/Desktop/project/System Trading/Fake_Trading/tradingViewCustom/backend/server\api\routes_ws.py
+## FILE PATH: C:/Users/blue/Desktop/project/System Trading/Fake_Trading/tradingViewCustom/frontend\css\theme.css
 ============================================================
 
-import asyncio
-
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
-
-from ..main_dependencies import get_connection_manager
-
-router = APIRouter()
-
-
-@router.websocket("/ws/chart")
-async def ws_chart(websocket: WebSocket) -> None:
-    manager = get_connection_manager()
-    await manager.connect(websocket)
-    try:
-        while True:
-               # 클라이언트 heartbeat(ping/subscribe 등)를 수신하며 연결을 유지한다.
-            # 타임아웃으로 강제 종료하지 않아 수신 전용 클라이언트도 안정적으로 유지된다.
-            await websocket.receive_text()
-    except WebSocketDisconnect:
-        manager.disconnect(websocket)
-
-
-============================================================
-## FILE PATH: C:/Users/blue/Desktop/project/System Trading/Fake_Trading/tradingViewCustom/backend/server\core\__init__.py
-============================================================
-
-
-
-============================================================
-## FILE PATH: C:/Users/blue/Desktop/project/System Trading/Fake_Trading/tradingViewCustom/backend/server\core\config.py
-============================================================
-
-from pathlib import Path
-from pydantic_settings import BaseSettings, SettingsConfigDict
-
-
-class Settings(BaseSettings):
-    app_name: str = "TradingView Custom Mock Platform"
-    data_file: Path = Path("backend/data/BTC_USDT_USDT-1m-futures.feather")
-    history_limit: int = 500
-    history_max_limit: int = 5000
-    ws_interval_seconds: float = 1.0
-
-    io_workers: int = 4
-    calc_workers: int = 4
-    market_worker_name: str = "BinanceFallbackRandomWorker"
-    binance_ws_base_url: str = "wss://stream.binance.com:9443"
-    binance_symbol: str = "btcusdt"
-    binance_interval: str = "1m"
-
-    model_config = SettingsConfigDict(env_prefix="TVC_")
-
-
-settings = Settings()
-
-
-============================================================
-## FILE PATH: C:/Users/blue/Desktop/project/System Trading/Fake_Trading/tradingViewCustom/backend/server\core\executors.py
-============================================================
-
-from __future__ import annotations
-
-from concurrent.futures import ThreadPoolExecutor
-
-
-class AppExecutors:
-    """Centralized executors to prevent ad-hoc thread pools across modules."""
-
-    def __init__(self, io_workers: int = 4, calc_workers: int = 4) -> None:
-        self.io = ThreadPoolExecutor(max_workers=io_workers, thread_name_prefix="io")
-        self.calc = ThreadPoolExecutor(max_workers=calc_workers, thread_name_prefix="calc")
-
-    def shutdown(self) -> None:
-        self.io.shutdown(wait=False, cancel_futures=True)
-        self.calc.shutdown(wait=False, cancel_futures=True)
-
-
-============================================================
-## FILE PATH: C:/Users/blue/Desktop/project/System Trading/Fake_Trading/tradingViewCustom/backend/server\indicators\base.py
-============================================================
-
-from abc import ABC, abstractmethod
-from typing import Sequence
-
-from ..models.candle import Candle
-
-class Indicator(ABC):
-    name: str = "base"
-
-    @abstractmethod
-    def compute(self, candles: Sequence[Candle]) -> dict:
-        """Compute indicator output."""
-
-
-============================================================
-## FILE PATH: C:/Users/blue/Desktop/project/System Trading/Fake_Trading/tradingViewCustom/backend/server\indicators\registry.py
-============================================================
-
-from importlib import import_module
-import pkgutil
-from typing import Iterable
-
-from .base import Indicator
-
-
-def discover_indicators() -> list[Indicator]:
-    indicators: list[Indicator] = []
-    package = import_module(__package__)
-
-    for _, module_name, _ in pkgutil.iter_modules(package.__path__):
-        if module_name in {"base", "registry"}:
-            continue
-        module = import_module(f"{__package__}.{module_name}")
-        for value in module.__dict__.values():
-            if isinstance(value, type) and issubclass(value, Indicator) and value is not Indicator:
-                indicators.append(value())
-    return indicators
-
-
-def compute_all(indicators: Iterable[Indicator], candles) -> dict:
-    return {indicator.name: indicator.compute(candles) for indicator in indicators}
-
-
-============================================================
-## FILE PATH: C:/Users/blue/Desktop/project/System Trading/Fake_Trading/tradingViewCustom/backend/server\indicators\sma.py
-============================================================
-
-from statistics import fmean
-from typing import Sequence
-
-from ..indicators.base import Indicator
-from ..models.candle import Candle
-
-
-class SmaIndicator(Indicator):
-    name = "sma_5"
-
-    def compute(self, candles: Sequence[Candle]) -> dict:
-        closes = [c.close for c in candles][-5:]
-        if not closes:
-            return {"value": None}
-        return {"value": fmean(closes)}
-
-
-============================================================
-## FILE PATH: C:/Users/blue/Desktop/project/System Trading/Fake_Trading/tradingViewCustom/backend/server\main.py
-============================================================
-
-import sys
-import os
-
-# 현재 파일(main.py)이 있는 폴더의 상위 폴더(backend)를 경로에 추가
-current_dir = os.path.dirname(os.path.abspath(__file__))
-parent_dir = os.path.dirname(current_dir)
-if parent_dir not in sys.path:
-    sys.path.insert(0, parent_dir)
-
-import asyncio
-import contextlib
-from contextlib import asynccontextmanager
-
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-
-from .api.routes_health import router as health_router
-from .api.routes_history import router as history_router
-from .api.routes_trading import router as trading_router
-from .api.routes_ws import router as ws_router
-from .core.config import settings
-from .main_dependencies import (
-    get_connection_manager,
-    get_executors,
-    get_price_cache,
-    init_executors,
-    init_history_provider,
-    init_trading_service,
-)
-from .workers.registry import create_worker
-
-
-async def broadcast_market_data_task() -> None:
-    worker = create_worker(settings.market_worker_name)
-    manager = get_connection_manager()
-    price_cache = get_price_cache()
-    while True:
-        try:
-            candle = await worker.next_candle()
-            price_cache.set_last_price(candle.close)
-            await manager.broadcast_json(candle.model_dump())
-        except Exception as error:
-            print(f"broadcast loop error: {error}")
-        await asyncio.sleep(settings.ws_interval_seconds)
-
-
-@asynccontextmanager
-async def lifespan(_: FastAPI):
-    init_executors()
-    init_trading_service()
-    provider = init_history_provider()
-    await provider.load()
-    print(f"history provider loaded: {provider.__class__.__name__}")
-    if hasattr(provider, "df") and getattr(provider, "df") is not None:
-        print(f"history rows: {len(provider.df)}")
-
-    market_task = asyncio.create_task(broadcast_market_data_task())
-    try:
-        yield
-    finally:
-        market_task.cancel()
-        with contextlib.suppress(asyncio.CancelledError):
-            await market_task
-        get_executors().shutdown()
-
-
-app = FastAPI(title=settings.app_name, lifespan=lifespan)
-app.include_router(health_router)
-app.include_router(history_router)
-app.include_router(trading_router)
-app.include_router(ws_router)
-
-# CORS 미들웨어 추가
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000", "http://[::1]:3000"], 
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-============================================================
-## FILE PATH: C:/Users/blue/Desktop/project/System Trading/Fake_Trading/tradingViewCustom/backend/server\main_dependencies.py
-============================================================
-
-from __future__ import annotations
-
-import asyncio
-from typing import Optional
-
-from .core.config import settings
-from .core.executors import AppExecutors
-from .indicators.registry import compute_all, discover_indicators
-try:
-    from .services.history_base import HistoryProvider
-except ImportError:
-    from backend.server.services.history_base import HistoryProvider
-from .services.history_factory import create_history_provider
-from .services.price_cache import PriceCache
-from .services.trading.base import TradingService
-from .services.trading.memory_service import InMemoryTradingService
-from .services.ws_manager import ConnectionManager
-
-_history_provider: Optional[HistoryProvider] = None
-_connection_manager = ConnectionManager()
-_executors: Optional[AppExecutors] = None
-_price_cache = PriceCache()
-_trading_service: Optional[TradingService] = None
-
-
-def init_executors() -> AppExecutors:
-    global _executors
-    if _executors is None:
-        _executors = AppExecutors(io_workers=settings.io_workers, calc_workers=settings.calc_workers)
-    return _executors
-
-
-def get_executors() -> AppExecutors:
-    return init_executors()
-
-
-def init_history_provider() -> HistoryProvider:
-    global _history_provider
-    if _history_provider is None:
-        executors = get_executors()
-        _history_provider = create_history_provider(settings.data_file, io_executor=executors.io)
-    return _history_provider
-
-
-def get_history_provider() -> HistoryProvider:
-    return init_history_provider()
-
-
-def get_connection_manager() -> ConnectionManager:
-    return _connection_manager
-
-
-def get_price_cache() -> PriceCache:
-    return _price_cache
-
-
-def init_trading_service() -> TradingService:
-    global _trading_service
-    if _trading_service is None:
-        _trading_service = InMemoryTradingService(price_cache=get_price_cache())
-    return _trading_service
-
-
-def get_trading_service() -> TradingService:
-    return init_trading_service()
-
-
-async def get_indicator_results() -> dict:
-    provider = get_history_provider()
-    candles = await provider.get_recent(limit=settings.history_limit)
-    indicators = discover_indicators()
-    loop = asyncio.get_running_loop()
-    executors = get_executors()
-    return await loop.run_in_executor(executors.calc, lambda: compute_all(indicators, candles))
-
-
-============================================================
-## FILE PATH: C:/Users/blue/Desktop/project/System Trading/Fake_Trading/tradingViewCustom/backend/server\models\__init__.py
-============================================================
-
-
-
-============================================================
-## FILE PATH: C:/Users/blue/Desktop/project/System Trading/Fake_Trading/tradingViewCustom/backend/server\models\candle.py
-============================================================
-
-from pydantic import BaseModel
-
-
-class Candle(BaseModel):
-    time: int
-    open: float
-    high: float
-    low: float
-    close: float
-
-
-============================================================
-## FILE PATH: C:/Users/blue/Desktop/project/System Trading/Fake_Trading/tradingViewCustom/backend/server\models\trading.py
-============================================================
-
-from __future__ import annotations
-from typing import Optional
-from pydantic import BaseModel, Field
-
-
-class SessionCreateRequest(BaseModel):
-    username: str = Field(min_length=1, max_length=64)
-    seed_balance: float = Field(default=10000.0, gt=0)
-
-
-class SessionCreateResponse(BaseModel):
-    session_id: str
-    username: str
-    seed_balance: float
-
-
-class OrderCreateRequest(BaseModel):
-    side: str  # buy | sell
-    order_type: str  # market | limit
-    quantity: float = Field(gt=0)
-    limit_price: Optional[float] = Field(default=None, gt=0)
-
-
-class AccountSnapshot(BaseModel):
-    session_id: str
-    username: str
-    balance: float
-    position_qty: float
-    average_price: float
-    realized_pnl: float
-    unrealized_pnl: float
-    equity: float
-
-
-class OrderRecord(BaseModel):
-    order_id: str
-    session_id: str
-    side: str
-    order_type: str
-    quantity: float
-    limit_price: Optional[float] = None
-    status: str
-    fill_price: Optional[float] = None
-    created_at: int
-
-
-============================================================
-## FILE PATH: C:/Users/blue/Desktop/project/System Trading/Fake_Trading/tradingViewCustom/backend/server\services\__init__.py
-============================================================
-
-
-
-============================================================
-## FILE PATH: C:/Users/blue/Desktop/project/System Trading/Fake_Trading/tradingViewCustom/backend/server\services\history_base.py
-============================================================
-
-from abc import ABC, abstractmethod
-from typing import Sequence
-
-from ..models.candle import Candle
-
-
-class HistoryProvider(ABC):
-    @abstractmethod
-    async def load(self) -> None:
-        """Initialize resources for history queries."""
-
-    @abstractmethod
-    async def get_recent(self, limit: int) -> Sequence[Candle]:
-        """Return recent candle history."""
-
-
-============================================================
-## FILE PATH: C:/Users/blue/Desktop/project/System Trading/Fake_Trading/tradingViewCustom/backend/server\services\history_dummy.py
-============================================================
-
-from typing import Sequence
-
-from ..models.candle import Candle
-from .history_base import HistoryProvider
-
-
-class DummyHistoryProvider(HistoryProvider):
-    def __init__(self) -> None:
-        self._candles = [
-            Candle(time=1700000000, open=100, high=110, low=95, close=105),
-            Candle(time=1700000060, open=105, high=115, low=102, close=112),
-            Candle(time=1700000120, open=112, high=120, low=108, close=118),
-        ]
-
-    async def load(self) -> None:
-        return None
-
-    async def get_recent(self, limit: int) -> Sequence[Candle]:
-        return self._candles[-limit:]
-
-
-============================================================
-## FILE PATH: C:/Users/blue/Desktop/project/System Trading/Fake_Trading/tradingViewCustom/backend/server\services\history_factory.py
-============================================================
-
-from pathlib import Path
-from concurrent.futures import Executor
-
-from .history_base import HistoryProvider
-from .history_dummy import DummyHistoryProvider
-from .history_feather import FeatherHistoryProvider
-
-
-def create_history_provider(data_file: Path, io_executor: Executor) -> HistoryProvider:
-    if data_file.exists() and data_file.suffix == ".feather":
-        return FeatherHistoryProvider(data_file, executor=io_executor)
-    return DummyHistoryProvider()
-
-
-============================================================
-## FILE PATH: C:/Users/blue/Desktop/project/System Trading/Fake_Trading/tradingViewCustom/backend/server\services\history_feather.py
-============================================================
-
-from __future__ import annotations
-
-import asyncio
-from concurrent.futures import Executor
-from pathlib import Path
-from typing import Sequence
-
-import pandas as pd
-
-from ..models.candle import Candle
-from .history_base import HistoryProvider
-
-_REQUIRED_PRICE_COLUMNS = ("open", "high", "low", "close")
-_TIME_CANDIDATE_COLUMNS = ("time", "timestamp", "datetime", "date")
-
-
-class FeatherHistoryProvider(HistoryProvider):
-    def __init__(self, file_path: Path, executor: Executor) -> None:
-        self.file_path = file_path
-        self.df: pd.DataFrame | None = None
-        self.executor = executor
-
-    def _read_feather(self) -> pd.DataFrame:
-        raw_df = pd.read_feather(self.file_path)
-        return self._normalize(raw_df)
-
-    def _normalize(self, raw_df: pd.DataFrame) -> pd.DataFrame:
-        if raw_df.empty:
-            return pd.DataFrame(columns=["time", "open", "high", "low", "close"])
-
-        columns_map = {str(col).lower(): col for col in raw_df.columns}
-
-        missing_prices = [name for name in _REQUIRED_PRICE_COLUMNS if name not in columns_map]
-        if missing_prices:
-            raise ValueError(f"missing required price columns: {missing_prices}")
-
-        time_key = next((name for name in _TIME_CANDIDATE_COLUMNS if name in columns_map), None)
-        if time_key is None:
-            raise ValueError("missing time column: one of time/timestamp/datetime/date is required")
-
-        frame = pd.DataFrame(
-            {
-                "time": raw_df[columns_map[time_key]],
-                "open": raw_df[columns_map["open"]],
-                "high": raw_df[columns_map["high"]],
-                "low": raw_df[columns_map["low"]],
-                "close": raw_df[columns_map["close"]],
-            }
-        )
-
-        if pd.api.types.is_datetime64_any_dtype(frame["time"]):
-            frame["time"] = frame["time"].astype("int64") // 10**9
-        elif pd.api.types.is_numeric_dtype(frame["time"]):
-            # Millisecond timestamps are common in exchange datasets.
-            if frame["time"].max() > 10**11:
-                frame["time"] = (frame["time"] // 1000).astype("int64")
-            else:
-                frame["time"] = frame["time"].astype("int64")
-        else:
-            frame["time"] = pd.to_datetime(frame["time"], utc=True).astype("int64") // 10**9
-
-        frame = frame.dropna(subset=["time", "open", "high", "low", "close"]).copy()
-        frame["time"] = frame["time"].astype("int64")
-        for key in _REQUIRED_PRICE_COLUMNS:
-            frame[key] = frame[key].astype("float64")
-
-        frame = frame.sort_values("time")
-        frame = frame.drop_duplicates(subset=["time"], keep="last")
-        return frame.reset_index(drop=True)
-
-    async def load(self) -> None:
-        loop = asyncio.get_running_loop()
-        self.df = await loop.run_in_executor(self.executor, self._read_feather)
-
-    async def get_recent(self, limit: int) -> Sequence[Candle]:
-        if self.df is None:
-            return []
-
-        recent_df = self.df.tail(limit)
-        candles: list[Candle] = []
-        for _, row in recent_df.iterrows():
-            candles.append(
-                Candle(
-                    time=int(row["time"]),
-                    open=float(row["open"]),
-                    high=float(row["high"]),
-                    low=float(row["low"]),
-                    close=float(row["close"]),
-                )
-            )
-        return candles
-
-
-============================================================
-## FILE PATH: C:/Users/blue/Desktop/project/System Trading/Fake_Trading/tradingViewCustom/backend/server\services\price_cache.py
-============================================================
-
-from __future__ import annotations
-from threading import RLock
-
-
-class PriceCache:
-    def __init__(self) -> None:
-        self._lock = RLock()
-        self._last_price: float | None = None
-
-    def set_last_price(self, price: float) -> None:
-        with self._lock:
-            self._last_price = price
-
-    def get_last_price(self) -> float | None:
-        with self._lock:
-            return self._last_price
-
-
-============================================================
-## FILE PATH: C:/Users/blue/Desktop/project/System Trading/Fake_Trading/tradingViewCustom/backend/server\services\trading\__init__.py
-============================================================
-
-
-
-============================================================
-## FILE PATH: C:/Users/blue/Desktop/project/System Trading/Fake_Trading/tradingViewCustom/backend/server\services\trading\base.py
-============================================================
-
-from abc import ABC, abstractmethod
-
-from ...models.trading import AccountSnapshot, OrderCreateRequest, OrderRecord, SessionCreateRequest, SessionCreateResponse
-
-
-class TradingService(ABC):
-    @abstractmethod
-    def create_session(self, payload: SessionCreateRequest) -> SessionCreateResponse:
-        ...
-
-    @abstractmethod
-    def get_account(self, session_id: str) -> AccountSnapshot:
-        ...
-
-    @abstractmethod
-    def create_order(self, session_id: str, payload: OrderCreateRequest) -> OrderRecord:
-        ...
-
-    @abstractmethod
-    def list_orders(self, session_id: str) -> list[OrderRecord]:
-        ...
-
-
-============================================================
-## FILE PATH: C:/Users/blue/Desktop/project/System Trading/Fake_Trading/tradingViewCustom/backend/server\services\trading\memory_service.py
-============================================================
-
-from __future__ import annotations
-
-from dataclasses import dataclass, field
-from threading import RLock
-import time
-import uuid
-
-from fastapi import HTTPException
-
-from ...models.trading import AccountSnapshot, OrderCreateRequest, OrderRecord, SessionCreateRequest, SessionCreateResponse
-from ..price_cache import PriceCache
-from .base import TradingService
-
-
-@dataclass
-class AccountState:
-    session_id: str
-    username: str
-    seed_balance: float
-    balance: float
-    position_qty: float = 0.0
-    average_price: float = 0.0
-    realized_pnl: float = 0.0
-    orders: list[OrderRecord] = field(default_factory=list)
-
-
-class InMemoryTradingService(TradingService):
-    def __init__(self, price_cache: PriceCache) -> None:
-        self._accounts: dict[str, AccountState] = {}
-        self._lock = RLock()
-        self._price_cache = price_cache
-
-    def create_session(self, payload: SessionCreateRequest) -> SessionCreateResponse:
-        with self._lock:
-            session_id = uuid.uuid4().hex
-            account = AccountState(
-                session_id=session_id,
-                username=payload.username,
-                seed_balance=float(payload.seed_balance),
-                balance=float(payload.seed_balance),
-            )
-            self._accounts[session_id] = account
-            return SessionCreateResponse(
-                session_id=session_id,
-                username=account.username,
-                seed_balance=account.seed_balance,
-            )
-
-    def _require_account(self, session_id: str) -> AccountState:
-        account = self._accounts.get(session_id)
-        if account is None:
-            raise HTTPException(status_code=404, detail="session not found")
-        return account
-
-    def _market_price(self) -> float:
-        px = self._price_cache.get_last_price()
-        if px is None:
-            raise HTTPException(status_code=400, detail="market price unavailable")
-        return px
-
-    def _apply_fill(self, account: AccountState, side: str, qty: float, price: float) -> None:
-        if side == "buy":
-            cost = qty * price
-            if account.balance < cost:
-                raise HTTPException(status_code=400, detail="insufficient balance")
-            new_qty = account.position_qty + qty
-            if new_qty <= 0:
-                account.position_qty = 0.0
-                account.average_price = 0.0
-            else:
-                account.average_price = ((account.average_price * account.position_qty) + (price * qty)) / new_qty
-                account.position_qty = new_qty
-            account.balance -= cost
-            return
-
-        if side == "sell":
-            if account.position_qty < qty:
-                raise HTTPException(status_code=400, detail="insufficient position")
-            pnl = (price - account.average_price) * qty
-            account.realized_pnl += pnl
-            account.position_qty -= qty
-            account.balance += price * qty
-            if account.position_qty == 0:
-                account.average_price = 0.0
-            return
-
-        raise HTTPException(status_code=400, detail="invalid side")
-
-    def create_order(self, session_id: str, payload: OrderCreateRequest) -> OrderRecord:
-        with self._lock:
-            account = self._require_account(session_id)
-            side = payload.side.lower()
-            order_type = payload.order_type.lower()
-
-            if order_type not in {"market", "limit"}:
-                raise HTTPException(status_code=400, detail="invalid order_type")
-            if side not in {"buy", "sell"}:
-                raise HTTPException(status_code=400, detail="invalid side")
-
-            market_price = self._market_price()
-            fill_price: float | None = None
-            status = "open"
-
-            if order_type == "market":
-                fill_price = market_price
-                status = "filled"
-            else:
-                if payload.limit_price is None:
-                    raise HTTPException(status_code=400, detail="limit_price is required for limit orders")
-                # naive immediate-or-resting evaluation against current price
-                if (side == "buy" and payload.limit_price >= market_price) or (
-                    side == "sell" and payload.limit_price <= market_price
-                ):
-                    fill_price = market_price
-                    status = "filled"
-
-            order = OrderRecord(
-                order_id=uuid.uuid4().hex,
-                session_id=session_id,
-                side=side,
-                order_type=order_type,
-                quantity=float(payload.quantity),
-                limit_price=payload.limit_price,
-                status=status,
-                fill_price=fill_price,
-                created_at=int(time.time()),
-            )
-
-            if status == "filled" and fill_price is not None:
-                self._apply_fill(account, side=side, qty=order.quantity, price=fill_price)
-
-            account.orders.append(order)
-            return order
-
-    def get_account(self, session_id: str) -> AccountSnapshot:
-        with self._lock:
-            account = self._require_account(session_id)
-            last = self._price_cache.get_last_price()
-            unrealized = 0.0
-            if last is not None and account.position_qty > 0:
-                unrealized = (last - account.average_price) * account.position_qty
-            equity = account.balance + (account.position_qty * (last or account.average_price))
-            return AccountSnapshot(
-                session_id=account.session_id,
-                username=account.username,
-                balance=round(account.balance, 6),
-                position_qty=round(account.position_qty, 6),
-                average_price=round(account.average_price, 6),
-                realized_pnl=round(account.realized_pnl, 6),
-                unrealized_pnl=round(unrealized, 6),
-                equity=round(equity, 6),
-            )
-
-    def list_orders(self, session_id: str) -> list[OrderRecord]:
-        with self._lock:
-            account = self._require_account(session_id)
-            return list(account.orders)
-
-
-============================================================
-## FILE PATH: C:/Users/blue/Desktop/project/System Trading/Fake_Trading/tradingViewCustom/backend/server\services\ws_manager.py
-============================================================
-
-from fastapi import WebSocket
-
-
-class ConnectionManager:
-    def __init__(self) -> None:
-        self.connections: set[WebSocket] = set()
-
-    async def connect(self, websocket: WebSocket) -> None:
-        await websocket.accept()
-        self.connections.add(websocket)
-
-    def disconnect(self, websocket: WebSocket) -> None:
-        self.connections.discard(websocket)
-
-    @property
-    def size(self) -> int:
-        return len(self.connections)
-
-    async def broadcast_json(self, data: dict) -> None:
-        stale = []
-        for connection in self.connections:
-            try:
-                await connection.send_json(data)
-            except Exception:
-                stale.append(connection)
-        for connection in stale:
-            self.disconnect(connection)
-
-
-============================================================
-## FILE PATH: C:/Users/blue/Desktop/project/System Trading/Fake_Trading/tradingViewCustom/backend/server\workers\__init__.py
-============================================================
-
-
-
-============================================================
-## FILE PATH: C:/Users/blue/Desktop/project/System Trading/Fake_Trading/tradingViewCustom/backend/server\workers\base.py
-============================================================
-
-from abc import ABC, abstractmethod
-
-from ..models.candle import Candle
-
-
-class MarketDataWorker(ABC):
-    @abstractmethod
-    async def next_candle(self) -> Candle:
-        """Produce next market candle."""
-
-
-============================================================
-## FILE PATH: C:/Users/blue/Desktop/project/System Trading/Fake_Trading/tradingViewCustom/backend/server\workers\binance_worker.py
-============================================================
-
-from __future__ import annotations
-
-import asyncio
-import json
-from ..core.config import settings
-from ..models.candle import Candle
-from .base import MarketDataWorker
-
-
-class BinanceMarketWorker(MarketDataWorker):
-    """Binance kline websocket worker.
-
-    실패 시 내부적으로 재연결/백오프를 수행하며, 서버 메인 루프를 중단시키지 않는다.
-    """
-
-    def __init__(self) -> None:
-        self._queue: asyncio.Queue[Candle] = asyncio.Queue(maxsize=2048)
-        self._runner_task: asyncio.Task | None = None
-
-    async def next_candle(self) -> Candle:
-        if self._runner_task is None or self._runner_task.done():
-            self._runner_task = asyncio.create_task(self._run())
-        return await self._queue.get()
-
-    async def _run(self) -> None:
-        backoff = 1.0
-        while True:
-            try:
-                await self._stream_loop()
-                backoff = 1.0
-            except asyncio.CancelledError:
-                raise
-            except Exception as exc:
-                print(f"binance worker reconnect: {exc}")
-                await asyncio.sleep(backoff)
-                backoff = min(backoff * 2, 30.0)
-
-    async def _stream_loop(self) -> None:
-        try:
-            import websockets
-        except Exception as exc:  # pragma: no cover - dependency/runtime environment
-            raise RuntimeError("websockets package is required for BinanceMarketWorker") from exc
-
-        symbol = settings.binance_symbol.lower()
-        interval = settings.binance_interval
-        stream_url = f"{settings.binance_ws_base_url}/ws/{symbol}@kline_{interval}"
-
-        async with websockets.connect(stream_url, ping_interval=20, ping_timeout=20) as socket:
-            async for message in socket:
-                payload = json.loads(message)
-                kline = payload.get("k")
-                if not kline:
-                    continue
-
-                candle = Candle(
-                    time=int(kline["t"]) // 1000,
-                    open=float(kline["o"]),
-                    high=float(kline["h"]),
-                    low=float(kline["l"]),
-                    close=float(kline["c"]),
-                )
-
-                if self._queue.full():
-                    _ = self._queue.get_nowait()
-                self._queue.put_nowait(candle)
-
-
-class BinanceFallbackRandomWorker(MarketDataWorker):
-    """Binance 연결 불가 시 랜덤 캔들로 안전하게 폴백하는 래퍼."""
-
-    def __init__(self) -> None:
-        from .random_worker import RandomMarketWorker
-
-        self._binance = BinanceMarketWorker()
-        self._fallback = RandomMarketWorker(seed_price=120.0)
-        self._use_fallback = False
-
-    async def next_candle(self) -> Candle:
-        if self._use_fallback:
-            return await self._fallback.next_candle()
-
-        try:
-            return await asyncio.wait_for(self._binance.next_candle(), timeout=5.0)
-        except Exception as exc:
-            print(f"binance unavailable, fallback to random worker: {exc}")
-            self._use_fallback = True
-            return await self._fallback.next_candle()
-
-
-============================================================
-## FILE PATH: C:/Users/blue/Desktop/project/System Trading/Fake_Trading/tradingViewCustom/backend/server\workers\random_worker.py
-============================================================
-
-import random
-import time
-
-from ..models.candle import Candle
-from .base import MarketDataWorker
-
-
-class RandomMarketWorker(MarketDataWorker):
-    def __init__(self, seed_price: float = 120.0):
-        self.price = seed_price
-
-    async def next_candle(self) -> Candle:
-        delta = random.uniform(-2.0, 2.0)
-        open_price = self.price
-        close_price = max(1.0, self.price + delta)
-        high_price = max(open_price, close_price) + random.uniform(0, 1.5)
-        low_price = min(open_price, close_price) - random.uniform(0, 1.5)
-        self.price = close_price
-        return Candle(
-            time=int(time.time()),
-            open=round(open_price, 2),
-            high=round(high_price, 2),
-            low=round(low_price, 2),
-            close=round(close_price, 2),
-        )
-
-
-============================================================
-## FILE PATH: C:/Users/blue/Desktop/project/System Trading/Fake_Trading/tradingViewCustom/backend/server\workers\registry.py
-============================================================
-
-from importlib import import_module
-import pkgutil
-
-from .base import MarketDataWorker
-
-
-def discover_worker_classes() -> dict[str, type[MarketDataWorker]]:
-    workers: dict[str, type[MarketDataWorker]] = {}
-    package = import_module(__package__)
+/* ## frontend/css/theme.css */
+/* 단일 진실 공급원 (SSoT): 컬러 및 크기 변수화 */
+:root {
+    --bg-color-base: #131722; /* TradingView 다크테마 배경 */
+    --bg-color-surface: #1e222d;
+    --text-color-primary: #d1d4dc;
+    --text-color-muted: #787b86;
+    --border-color: #2a2e39;
+    --accent-color: #2962ff;
     
-    for _, module_name, _ in pkgutil.iter_modules(package.__path__):
-        if module_name in {"base", "registry"}:
-            continue
-        module = import_module(f"{__package__}.{module_name}")
-        for value in module.__dict__.values():
-            if isinstance(value, type) and issubclass(value, MarketDataWorker) and value is not MarketDataWorker:
-                workers[value.__name__] = value
+    --header-height: 50px;
+    --toolbar-height: 40px;
+}
 
-    return workers
+body.dark-theme {
+    background-color: var(--bg-color-base);
+    color: var(--text-color-primary);
+}
 
+============================================================
+## FILE PATH: C:/Users/blue/Desktop/project/System Trading/Fake_Trading/tradingViewCustom/frontend\index.html
+============================================================
 
-def create_worker(worker_name: str) -> MarketDataWorker:
-    workers = discover_worker_classes()
-    worker_cls = workers.get(worker_name)
-    if worker_cls is None:
-        worker_cls = workers.get("RandomMarketWorker")
-    if worker_cls is None:
-        raise RuntimeError("No MarketDataWorker implementation found")
-    return worker_cls()
+<!-- ## frontend/index.html -->
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TradingView Custom Mock Platform</title>
+    <link rel="stylesheet" href="/css/layout.css">
+    <link rel="stylesheet" href="/css/theme.css">
+    <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
+</head>
+<body class="dark-theme">
+    <div id="app-container">
+        
+        <header id="app-header">
+            <div class="logo">TV-MockTrader</div>
+            <nav id="main-nav">
+                <button class="tab-btn active" data-target="view-trading">차트 & 모의투자</button>
+                <button class="tab-btn" data-target="view-community">자유게시판</button>
+                <button class="tab-btn" data-target="view-dashboard">내 성적 확인</button>
+            </nav>
+            <div class="user-profile">
+                <button id="btn-login">로그인 / 가입</button>
+            </div>
+        </header>
+
+        <main id="app-main">
+            
+            <section id="view-trading" class="view-section active">
+                <div class="toolbar">
+                    <select id="timeframe-selector">
+                        <option value="1m">1분</option>
+                        <option value="5m">5분</option>
+                        <option value="1h">1시간</option>
+                        <option value="1d">1일</option>
+                    </select>
+                    <button id="btn-add-chart">+ 차트 추가</button>
+                    <button id="btn-split-layout">레이아웃 분할</button>
+                </div>
+                <div id="chart-grid-container" class="grid-layout-single">
+                    </div>
+            </section>
+
+            <section id="view-community" class="view-section">
+                <h2>자유게시판</h2>
+                </section>
+
+            <section id="view-dashboard" class="view-section">
+                <h2>나의 모의투자 성적</h2>
+                </section>
+
+        </main>
+    </div>
+
+    <script src="/js/ui_controller.js"></script>
+    <script src="/js/chart_manager.js"></script>
+    <script src="/js/main.js"></script>
+</body>
+</html>
+
+============================================================
+## FILE PATH: C:/Users/blue/Desktop/project/System Trading/Fake_Trading/tradingViewCustom/frontend\js\chart_client.js
+============================================================
+
+// ## frontend/js/chart_client.js
+
+/**
+ * 독립적인 TradingView 차트 인스턴스를 관리하는 래퍼 클래스
+ * Grid 레이아웃 변경 시 자동으로 크기를 맞추는 ResizeObserver를 포함합니다.
+ * @class ChartWidget
+ */
+class ChartWidget {
+    /**
+     * @param {HTMLElement} container - 차트가 렌더링될 DOM 요소
+     * @param {string} symbol - 심볼명 (ex: BTC_USDT)
+     * @param {string} timeframe - 타임프레임 (ex: 1m)
+     */
+    constructor(container, symbol, timeframe) {
+        this.container = container;
+        this.symbol = symbol;
+        this.timeframe = timeframe;
+        
+        // 차트 초기화
+        this.chart = LightweightCharts.createChart(this.container, {
+            width: this.container.clientWidth,
+            height: this.container.clientHeight,
+            layout: {
+                backgroundColor: '#131722', // var(--bg-color-base)
+                textColor: '#d1d4dc',
+            },
+            grid: {
+                vertLines: { color: '#2a2e39' },
+                horzLines: { color: '#2a2e39' },
+            },
+            crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+            timeScale: { timeVisible: true, secondsVisible: false },
+        });
+
+        this.candleSeries = this.chart.addCandlestickSeries({
+            upColor: '#26a69a',
+            downColor: '#ef5350',
+            borderVisible: false,
+            wickUpColor: '#26a69a',
+            wickDownColor: '#ef5350'
+        });
+
+        this._setupResizeObserver();
+    }
+
+    /**
+     * 컨테이너 크기 변경 감지 (Grid 레이아웃 분할 시 필수)
+     * @private
+     */
+    _setupResizeObserver() {
+        this.resizeObserver = new ResizeObserver(entries => {
+            if (entries.length === 0 || entries[0].target !== this.container) return;
+            const newRect = entries[0].contentRect;
+            // 차트 리사이즈 수행 (UI 블로킹 최소화)
+            requestAnimationFrame(() => {
+                this.chart.applyOptions({ 
+                    width: newRect.width, 
+                    height: newRect.height 
+                });
+            });
+        });
+        this.resizeObserver.observe(this.container);
+    }
+
+    /**
+     * @param {Array} historyData - 과거 캔들 배열
+     */
+    setData(historyData) {
+        this.candleSeries.setData(historyData);
+    }
+
+    /**
+     * @param {Object} candle - 실시간 틱 데이터
+     */
+    update(candle) {
+        // TODO: 향후 백엔드에서 심볼/타임프레임을 함께 내려주면 여기서 필터링 로직 추가
+        this.candleSeries.update(candle);
+    }
+
+    destroy() {
+        this.resizeObserver.disconnect();
+        this.chart.remove();
+        this.container.innerHTML = '';
+    }
+}
+
+============================================================
+## FILE PATH: C:/Users/blue/Desktop/project/System Trading/Fake_Trading/tradingViewCustom/frontend\js\data_client.js
+============================================================
+
+// ## frontend/js/data_client.js
+
+/**
+ * 서버와의 HTTP API 및 WebSocket 통신을 전담하는 데이터 서비스 클래스
+ * @class DataClient
+ */
+class DataClient {
+    constructor() {
+        this.ws = null;
+        this.subscribers = []; // WS 데이터를 수신할 콜백 리스트 (Observer Pattern)
+    }
+
+    /**
+     * 특정 심볼과 타임프레임의 과거 캔들 데이터를 가져옵니다.
+     * (백엔드 API가 이 URL 구조를 지원하도록 곧 수정할 예정입니다)
+     * * @param {string} symbol - ex) "BTC_USDT"
+     * @param {string} timeframe - ex) "1m", "5m"
+     * @returns {Promise<Array>} 캔들 데이터 배열
+     */
+    async fetchHistory(symbol, timeframe) {
+        try {
+            // SSoT: 엔드포인트 규칙 통일
+            const response = await fetch(`/api/history/${symbol}/${timeframe}`);
+            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+            
+            const data = await response.json();
+            return data;
+        } catch (error) {
+            console.error(`[DataClient] History fetch failed for ${symbol}(${timeframe}):`, error);
+            return []; // UI 브레이크 방지 (Defensive)
+        }
+    }
+
+    /**
+     * 실시간 차트 업데이트를 위한 WebSocket을 연결합니다.
+     */
+    connectWS() {
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsUrl = `${protocol}//${window.location.host}/ws/chart`;
+
+        this.ws = new WebSocket(wsUrl);
+
+        this.ws.onopen = () => console.info("[DataClient] WebSocket Connected");
+        
+        this.ws.onmessage = (event) => {
+            try {
+                const data = JSON.parse(event.data);
+                // 등록된 모든 구독자(차트들)에게 데이터 브로드캐스트
+                this.subscribers.forEach(callback => callback(data));
+            } catch (error) {
+                console.error("[DataClient] WS Message Parse Error:", error);
+            }
+        };
+
+        this.ws.onclose = () => {
+            console.warn("[DataClient] WebSocket Disconnected. Reconnecting in 3s...");
+            setTimeout(() => this.connectWS(), 3000); // 자동 재연결
+        };
+    }
+
+    /**
+     * 실시간 데이터를 받을 콜백을 등록합니다.
+     * @param {Function} callback 
+     */
+    subscribe(callback) {
+        this.subscribers.push(callback);
+    }
+}
+
+// 전역 싱글톤 인스턴스 (SSoT)
+window.DataClient = new DataClient();
+
+============================================================
+## FILE PATH: C:/Users/blue/Desktop/project/System Trading/Fake_Trading/tradingViewCustom/frontend\js\main.js
+============================================================
+
+// ## frontend/js/main.js
+
+/**
+ * 전체 애플리케이션 상태 및 차트 생명주기를 관리하는 메인 컨트롤러
+ */
+class AppController {
+    constructor() {
+        this.charts = []; // 생성된 ChartWidget 인스턴스 배열
+        this.gridContainer = document.getElementById('chart-grid-container');
+        this.layoutIndex = 0;
+        this.layouts = ['single', 'split-h', 'split-v', 'quad'];
+        
+        this._bindUIEvents();
+        this._initApp();
+    }
+
+    async _initApp() {
+        // 1. 초기 단일 차트 생성 (기본값: BTC_USDT, 1m)
+        await this.addChart('BTC_USDT', '1m');
+
+        // 2. 웹소켓 연결 및 글로벌 구독 설정
+        window.DataClient.connectWS();
+        window.DataClient.subscribe((tickData) => {
+            // 수신된 틱 데이터를 활성화된 모든 차트 인스턴스에 전달
+            this.charts.forEach(chart => chart.update(tickData));
+        });
+    }
+
+    _bindUIEvents() {
+        const btnSplit = document.getElementById('btn-split-layout');
+        const btnAdd = document.getElementById('btn-add-chart');
+
+        if (btnSplit) {
+            btnSplit.addEventListener('click', () => this.toggleLayout());
+        }
+
+        if (btnAdd) {
+            btnAdd.addEventListener('click', () => {
+                // 임시로 하드코딩된 심볼 추가. 향후 UI 모달창 등에서 선택받도록 확장.
+                this.addChart('BTC_USDT', '5m'); 
+            });
+        }
+    }
+
+    /**
+     * 새로운 차트를 Grid 컨테이너에 추가합니다.
+     * @param {string} symbol 
+     * @param {string} timeframe 
+     */
+    async addChart(symbol, timeframe) {
+        if (this.charts.length >= 4) {
+            alert("최대 4개의 차트만 띄울 수 있습니다.");
+            return;
+        }
+
+        // 1. DOM 컨테이너 생성
+        const chartDiv = document.createElement('div');
+        chartDiv.className = 'chart-pane';
+        this.gridContainer.appendChild(chartDiv);
+
+        // 2. ChartWidget 인스턴스화
+        const chartWidget = new ChartWidget(chartDiv, symbol, timeframe);
+        this.charts.push(chartWidget);
+
+        // 3. 레이아웃 자동 조정 (차트 갯수에 맞춰 Grid 변경)
+        this._autoAdjustLayout();
+
+        // 4. 초기 히스토리 데이터 페칭 및 렌더링
+        const historyData = await window.DataClient.fetchHistory(symbol, timeframe);
+        if (historyData.length > 0) {
+            chartWidget.setData(historyData);
+        }
+    }
+
+    /**
+     * 레이아웃 순환 토글 (단일 -> 가로분할 -> 세로분할 -> 4분할)
+     */
+    toggleLayout() {
+        this.layoutIndex = (this.layoutIndex + 1) % this.layouts.length;
+        const targetLayout = this.layouts[this.layoutIndex];
+        
+        // 이전에 작성한 ui_controller.js 의 레이아웃 변경 기능 호출
+        if (window.AppUI) {
+            window.AppUI.setChartLayout(targetLayout);
+        }
+    }
+
+    /**
+     * 차트 갯수에 따라 레이아웃을 지능적으로 변경 (Defensive)
+     * @private
+     */
+    _autoAdjustLayout() {
+        const count = this.charts.length;
+        if (count === 1) this.layoutIndex = 0; // single
+        else if (count === 2) this.layoutIndex = 1; // split-h
+        else if (count >= 3) this.layoutIndex = 3; // quad
+
+        if (window.AppUI) {
+            window.AppUI.setChartLayout(this.layouts[this.layoutIndex]);
+        }
+    }
+}
+
+// 스크립트 로드 완료 후 컨트롤러 실행
+document.addEventListener('DOMContentLoaded', () => {
+    // ui_controller.js가 먼저 로드되어 window.AppUI가 있다고 가정
+    window.MainApp = new AppController();
+});
+
+============================================================
+## FILE PATH: C:/Users/blue/Desktop/project/System Trading/Fake_Trading/tradingViewCustom/frontend\js\ui_controller.js
+============================================================
+
+// ## frontend/js/ui_controller.js
+
+/**
+ * UI 레이아웃 및 탭 전환을 관리하는 Controller 클래스
+ * 비즈니스 로직(데이터 페칭 등)은 포함하지 않으며 오직 View 상태만 관리합니다.
+ */
+class UIController {
+    /**
+     * @param {string} navSelector - 네비게이션 버튼 컨테이너 셀렉터
+     * @param {string} viewSelector - 뷰 섹션 셀렉터
+     */
+    constructor(navSelector, viewSelector) {
+        this.navButtons = document.querySelectorAll(`${navSelector} .tab-btn`);
+        this.views = document.querySelectorAll(viewSelector);
+        
+        this._initEvents();
+    }
+
+    /**
+     * 초기 이벤트 바인딩 (메인 스레드 블로킹 방지)
+     * @private
+     */
+    _initEvents() {
+        if (!this.navButtons.length || !this.views.length) {
+            console.error("[UIController] UI 요소를 찾을 수 없습니다. (DOM 로드 확인 필요)");
+            return;
+        }
+
+        this.navButtons.forEach(btn => {
+            btn.addEventListener('click', (e) => this.switchTab(e.currentTarget));
+        });
+    }
+
+    /**
+     * 탭 전환 로직
+     * @param {HTMLElement} selectedBtn - 클릭된 버튼 요소
+     */
+    switchTab(selectedBtn) {
+        const targetId = selectedBtn.getAttribute('data-target');
+        if (!targetId) return;
+
+        // 1. 버튼 상태 업데이트
+        this.navButtons.forEach(btn => btn.classList.remove('active'));
+        selectedBtn.classList.add('active');
+
+        // 2. 뷰 상태 업데이트
+        this.views.forEach(view => {
+            if (view.id === targetId) {
+                view.classList.add('active');
+            } else {
+                view.classList.remove('active');
+            }
+        });
+
+        // 3. 차트 리사이즈 이벤트 트리거 (화면 렌더링 최적화)
+        // 숨겨져 있던 차트가 다시 나타날 때 크기를 재계산해야 합니다.
+        window.dispatchEvent(new Event('resize'));
+    }
+
+    /**
+     * 차트 그리드 레이아웃 변경
+     * @param {string} layoutType - 'single', 'split-h', 'split-v', 'quad'
+     */
+    setChartLayout(layoutType) {
+        const gridContainer = document.getElementById('chart-grid-container');
+        if (!gridContainer) return;
+
+        // 기존 레이아웃 클래스 제거 및 새 클래스 부여
+        gridContainer.className = `grid-layout-${layoutType}`;
+        window.dispatchEvent(new Event('resize')); // 차트 크기 재계산
+    }
+}
+
+// 전역 싱글톤 인스턴스 (DOMContentLoaded 이후 초기화)
+document.addEventListener('DOMContentLoaded', () => {
+    window.AppUI = new UIController('#main-nav', '.view-section');
+});

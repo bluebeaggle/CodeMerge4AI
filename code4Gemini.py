@@ -14,9 +14,11 @@ IGNORE_LIST = {
     "dist", "build", ".next", ".nuxt", "out", "target",
     ".idea", ".vscode", ".vs",
     ".DS_Store", "Thumbs.db", "$RECYCLE.BIN",
-    ".cache", ".temp", ".tmp",
-    ".gitignore", ".gitattributes", ".env", ".env.local",
+    ".cache", ".temp", ".tmp", "bin",
+    ".gitignore", ".gitattributes", ".env", ".env.local", "docs"
 }
+
+INCLUDE_EXTENSIONS = {".py", ".js", ".html", ".css"}
 
 OUTPUT_FILENAME = "merged_codebase.txt"
 MAX_FILE_SIZE_MB = 10  # 너무 큰 파일 방지용 (원하면 None 처리)
@@ -96,7 +98,10 @@ def build_tree_and_collect(path, prefix="", collected_files=None, visited=None):
                 visited
             )
         else:
-            if entry.name.endswith(".py"):
+            # if entry.name.endswith(".py"):
+            #     collected_files.append(entry.path)
+            _, ext = os.path.splitext(entry.name)
+            if ext.lower() in INCLUDE_EXTENSIONS:
                 collected_files.append(entry.path)
 
     return collected_files
