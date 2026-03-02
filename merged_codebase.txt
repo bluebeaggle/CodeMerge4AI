@@ -1,0 +1,1164 @@
+================================================================================
+MERGED CODEBASE
+Generated: 2026-03-02 14:53:27.589488
+Root Folder: C:/Users/blue/Desktop/project/System Trading/Fake_Trading/tradingViewCustom/backend/server
+================================================================================
+
+PROJECT STRUCTURE
+================================================================================
+
+├── 📁 api
+│   ├── 📄 __init__.py
+│   ├── 📄 routes_health.py
+│   ├── 📄 routes_history.py
+│   ├── 📄 routes_trading.py
+│   └── 📄 routes_ws.py
+├── 📁 core
+│   ├── 📄 __init__.py
+│   ├── 📄 config.py
+│   └── 📄 executors.py
+├── 📁 indicators
+│   ├── 📄 base.py
+│   ├── 📄 registry.py
+│   └── 📄 sma.py
+├── 📁 models
+│   ├── 📄 __init__.py
+│   ├── 📄 candle.py
+│   └── 📄 trading.py
+├── 📁 services
+│   ├── 📁 trading
+│   │   ├── 📄 __init__.py
+│   │   ├── 📄 base.py
+│   │   └── 📄 memory_service.py
+│   ├── 📄 __init__.py
+│   ├── 📄 history_base.py
+│   ├── 📄 history_dummy.py
+│   ├── 📄 history_factory.py
+│   ├── 📄 history_feather.py
+│   ├── 📄 price_cache.py
+│   └── 📄 ws_manager.py
+├── 📁 workers
+│   ├── 📄 __init__.py
+│   ├── 📄 base.py
+│   ├── 📄 binance_worker.py
+│   ├── 📄 random_worker.py
+│   └── 📄 registry.py
+├── 📄 __init__.py
+├── 📄 main.py
+├── 📄 main_dependencies.py
+└── 📄 merged_codebase.txt
+
+
+================================================================================
+PYTHON FILE CONTENTS
+================================================================================
+
+
+============================================================
+## FILE PATH: C:/Users/blue/Desktop/project/System Trading/Fake_Trading/tradingViewCustom/backend/server\__init__.py
+============================================================
+
+"""Runtime-safe package path initialization for `server`.
+
+This helps uvicorn reloader/app-dir subprocesses resolve `server.*` modules
+consistently on different environments (including Windows + watchfiles).
+"""
+
+# from pathlib import Path
+# from pkgutil import extend_path
+
+# __path__ = extend_path(__path__, __name__)  # type: ignore[name-defined]
+
+# _current_pkg_dir = Path(__file__).resolve().parent
+# _repo_root_server_dir = _current_pkg_dir.parents[1] / "server"
+
+# for candidate in (_current_pkg_dir, _repo_root_server_dir):
+#     candidate_str = str(candidate)
+#     if candidate.exists() and candidate_str not in __path__:
+#         __path__.append(candidate_str)
+
+
+============================================================
+## FILE PATH: C:/Users/blue/Desktop/project/System Trading/Fake_Trading/tradingViewCustom/backend/server\api\__init__.py
+============================================================
+
+
+
+============================================================
+## FILE PATH: C:/Users/blue/Desktop/project/System Trading/Fake_Trading/tradingViewCustom/backend/server\api\routes_health.py
+============================================================
+
+from fastapi import APIRouter
+
+router = APIRouter()
+
+
+@router.get("/")
+async def health() -> dict:
+    return {"status": "ok"}
+
+
+============================================================
+## FILE PATH: C:/Users/blue/Desktop/project/System Trading/Fake_Trading/tradingViewCustom/backend/server\api\routes_history.py
+============================================================
+
+from fastapi import APIRouter, Depends, Query
+
+from ..core.config import settings
+from ..main_dependencies import get_history_provider, get_indicator_results
+from ..services.history_base import HistoryProvider
+from ..services.history_dummy import DummyHistoryProvider
+
+router = APIRouter(prefix="/api")
+
+
+@router.get("/history")
+async def get_history(
+    source: str = Query(default="auto", pattern="^(auto|dummy)$"),
+    limit: int = Query(default=settings.history_limit, ge=1, le=settings.history_max_limit),
+    provider: HistoryProvider = Depends(get_history_provider),
+) -> list[dict]:
+    """Step 9/13-ready history endpoint.
+
+    - source=auto: current provider (feather if available, otherwise dummy)
+    - source=dummy: force dummy payload
+    - limit: caller-controlled history length (bounded)
+    """
+    if source == "dummy":
+        # Step 9 요구사항: dummy source는 항상 3개 캔들 고정 응답
+        candles = await DummyHistoryProvider().get_recent(limit=3)
+    else:
+        candles = await provider.get_recent(limit=limit)
+    return [c.model_dump() for c in candles]
+
+
+@router.get("/indicators")
+async def get_indicators(results: dict = Depends(get_indicator_results)) -> dict:
+    return results
+
+
+============================================================
+## FILE PATH: C:/Users/blue/Desktop/project/System Trading/Fake_Trading/tradingViewCustom/backend/server\api\routes_trading.py
+============================================================
+
+from fastapi import APIRouter, Depends
+
+from ..main_dependencies import get_trading_service
+from ..models.trading import AccountSnapshot, OrderCreateRequest, OrderRecord, SessionCreateRequest, SessionCreateResponse
+from ..services.trading.base import TradingService
+
+router = APIRouter(prefix="/api")
+
+
+@router.post("/session", response_model=SessionCreateResponse)
+async def create_session(
+    payload: SessionCreateRequest,
+    trading_service: TradingService = Depends(get_trading_service),
+) -> SessionCreateResponse:
+    return trading_service.create_session(payload)
+
+
+@router.get("/account/{session_id}", response_model=AccountSnapshot)
+async def get_account(
+    session_id: str,
+    trading_service: TradingService = Depends(get_trading_service),
+) -> AccountSnapshot:
+    return trading_service.get_account(session_id)
+
+
+@router.post("/order/{session_id}", response_model=OrderRecord)
+async def create_order(
+    session_id: str,
+    payload: OrderCreateRequest,
+    trading_service: TradingService = Depends(get_trading_service),
+) -> OrderRecord:
+    return trading_service.create_order(session_id, payload)
+
+
+@router.get("/orders/{session_id}", response_model=list[OrderRecord])
+async def list_orders(
+    session_id: str,
+    trading_service: TradingService = Depends(get_trading_service),
+) -> list[OrderRecord]:
+    return trading_service.list_orders(session_id)
+
+
+============================================================
+## FILE PATH: C:/Users/blue/Desktop/project/System Trading/Fake_Trading/tradingViewCustom/backend/server\api\routes_ws.py
+============================================================
+
+import asyncio
+
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+
+from ..main_dependencies import get_connection_manager
+
+router = APIRouter()
+
+
+@router.websocket("/ws/chart")
+async def ws_chart(websocket: WebSocket) -> None:
+    manager = get_connection_manager()
+    await manager.connect(websocket)
+    try:
+        while True:
+               # 클라이언트 heartbeat(ping/subscribe 등)를 수신하며 연결을 유지한다.
+            # 타임아웃으로 강제 종료하지 않아 수신 전용 클라이언트도 안정적으로 유지된다.
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        manager.disconnect(websocket)
+
+
+============================================================
+## FILE PATH: C:/Users/blue/Desktop/project/System Trading/Fake_Trading/tradingViewCustom/backend/server\core\__init__.py
+============================================================
+
+
+
+============================================================
+## FILE PATH: C:/Users/blue/Desktop/project/System Trading/Fake_Trading/tradingViewCustom/backend/server\core\config.py
+============================================================
+
+from pathlib import Path
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class Settings(BaseSettings):
+    app_name: str = "TradingView Custom Mock Platform"
+    data_file: Path = Path("backend/data/BTC_USDT_USDT-1m-futures.feather")
+    history_limit: int = 500
+    history_max_limit: int = 5000
+    ws_interval_seconds: float = 1.0
+
+    io_workers: int = 4
+    calc_workers: int = 4
+    market_worker_name: str = "BinanceFallbackRandomWorker"
+    binance_ws_base_url: str = "wss://stream.binance.com:9443"
+    binance_symbol: str = "btcusdt"
+    binance_interval: str = "1m"
+
+    model_config = SettingsConfigDict(env_prefix="TVC_")
+
+
+settings = Settings()
+
+
+============================================================
+## FILE PATH: C:/Users/blue/Desktop/project/System Trading/Fake_Trading/tradingViewCustom/backend/server\core\executors.py
+============================================================
+
+from __future__ import annotations
+
+from concurrent.futures import ThreadPoolExecutor
+
+
+class AppExecutors:
+    """Centralized executors to prevent ad-hoc thread pools across modules."""
+
+    def __init__(self, io_workers: int = 4, calc_workers: int = 4) -> None:
+        self.io = ThreadPoolExecutor(max_workers=io_workers, thread_name_prefix="io")
+        self.calc = ThreadPoolExecutor(max_workers=calc_workers, thread_name_prefix="calc")
+
+    def shutdown(self) -> None:
+        self.io.shutdown(wait=False, cancel_futures=True)
+        self.calc.shutdown(wait=False, cancel_futures=True)
+
+
+============================================================
+## FILE PATH: C:/Users/blue/Desktop/project/System Trading/Fake_Trading/tradingViewCustom/backend/server\indicators\base.py
+============================================================
+
+from abc import ABC, abstractmethod
+from typing import Sequence
+
+from ..models.candle import Candle
+
+class Indicator(ABC):
+    name: str = "base"
+
+    @abstractmethod
+    def compute(self, candles: Sequence[Candle]) -> dict:
+        """Compute indicator output."""
+
+
+============================================================
+## FILE PATH: C:/Users/blue/Desktop/project/System Trading/Fake_Trading/tradingViewCustom/backend/server\indicators\registry.py
+============================================================
+
+from importlib import import_module
+import pkgutil
+from typing import Iterable
+
+from .base import Indicator
+
+
+def discover_indicators() -> list[Indicator]:
+    indicators: list[Indicator] = []
+    package = import_module(__package__)
+
+    for _, module_name, _ in pkgutil.iter_modules(package.__path__):
+        if module_name in {"base", "registry"}:
+            continue
+        module = import_module(f"{__package__}.{module_name}")
+        for value in module.__dict__.values():
+            if isinstance(value, type) and issubclass(value, Indicator) and value is not Indicator:
+                indicators.append(value())
+    return indicators
+
+
+def compute_all(indicators: Iterable[Indicator], candles) -> dict:
+    return {indicator.name: indicator.compute(candles) for indicator in indicators}
+
+
+============================================================
+## FILE PATH: C:/Users/blue/Desktop/project/System Trading/Fake_Trading/tradingViewCustom/backend/server\indicators\sma.py
+============================================================
+
+from statistics import fmean
+from typing import Sequence
+
+from ..indicators.base import Indicator
+from ..models.candle import Candle
+
+
+class SmaIndicator(Indicator):
+    name = "sma_5"
+
+    def compute(self, candles: Sequence[Candle]) -> dict:
+        closes = [c.close for c in candles][-5:]
+        if not closes:
+            return {"value": None}
+        return {"value": fmean(closes)}
+
+
+============================================================
+## FILE PATH: C:/Users/blue/Desktop/project/System Trading/Fake_Trading/tradingViewCustom/backend/server\main.py
+============================================================
+
+import sys
+import os
+
+# 현재 파일(main.py)이 있는 폴더의 상위 폴더(backend)를 경로에 추가
+current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(current_dir)
+if parent_dir not in sys.path:
+    sys.path.insert(0, parent_dir)
+
+import asyncio
+import contextlib
+from contextlib import asynccontextmanager
+
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
+from .api.routes_health import router as health_router
+from .api.routes_history import router as history_router
+from .api.routes_trading import router as trading_router
+from .api.routes_ws import router as ws_router
+from .core.config import settings
+from .main_dependencies import (
+    get_connection_manager,
+    get_executors,
+    get_price_cache,
+    init_executors,
+    init_history_provider,
+    init_trading_service,
+)
+from .workers.registry import create_worker
+
+
+async def broadcast_market_data_task() -> None:
+    worker = create_worker(settings.market_worker_name)
+    manager = get_connection_manager()
+    price_cache = get_price_cache()
+    while True:
+        try:
+            candle = await worker.next_candle()
+            price_cache.set_last_price(candle.close)
+            await manager.broadcast_json(candle.model_dump())
+        except Exception as error:
+            print(f"broadcast loop error: {error}")
+        await asyncio.sleep(settings.ws_interval_seconds)
+
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    init_executors()
+    init_trading_service()
+    provider = init_history_provider()
+    await provider.load()
+    print(f"history provider loaded: {provider.__class__.__name__}")
+    if hasattr(provider, "df") and getattr(provider, "df") is not None:
+        print(f"history rows: {len(provider.df)}")
+
+    market_task = asyncio.create_task(broadcast_market_data_task())
+    try:
+        yield
+    finally:
+        market_task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await market_task
+        get_executors().shutdown()
+
+
+app = FastAPI(title=settings.app_name, lifespan=lifespan)
+app.include_router(health_router)
+app.include_router(history_router)
+app.include_router(trading_router)
+app.include_router(ws_router)
+
+# CORS 미들웨어 추가
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000", "http://[::1]:3000"], 
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+============================================================
+## FILE PATH: C:/Users/blue/Desktop/project/System Trading/Fake_Trading/tradingViewCustom/backend/server\main_dependencies.py
+============================================================
+
+from __future__ import annotations
+
+import asyncio
+from typing import Optional
+
+from .core.config import settings
+from .core.executors import AppExecutors
+from .indicators.registry import compute_all, discover_indicators
+try:
+    from .services.history_base import HistoryProvider
+except ImportError:
+    from backend.server.services.history_base import HistoryProvider
+from .services.history_factory import create_history_provider
+from .services.price_cache import PriceCache
+from .services.trading.base import TradingService
+from .services.trading.memory_service import InMemoryTradingService
+from .services.ws_manager import ConnectionManager
+
+_history_provider: Optional[HistoryProvider] = None
+_connection_manager = ConnectionManager()
+_executors: Optional[AppExecutors] = None
+_price_cache = PriceCache()
+_trading_service: Optional[TradingService] = None
+
+
+def init_executors() -> AppExecutors:
+    global _executors
+    if _executors is None:
+        _executors = AppExecutors(io_workers=settings.io_workers, calc_workers=settings.calc_workers)
+    return _executors
+
+
+def get_executors() -> AppExecutors:
+    return init_executors()
+
+
+def init_history_provider() -> HistoryProvider:
+    global _history_provider
+    if _history_provider is None:
+        executors = get_executors()
+        _history_provider = create_history_provider(settings.data_file, io_executor=executors.io)
+    return _history_provider
+
+
+def get_history_provider() -> HistoryProvider:
+    return init_history_provider()
+
+
+def get_connection_manager() -> ConnectionManager:
+    return _connection_manager
+
+
+def get_price_cache() -> PriceCache:
+    return _price_cache
+
+
+def init_trading_service() -> TradingService:
+    global _trading_service
+    if _trading_service is None:
+        _trading_service = InMemoryTradingService(price_cache=get_price_cache())
+    return _trading_service
+
+
+def get_trading_service() -> TradingService:
+    return init_trading_service()
+
+
+async def get_indicator_results() -> dict:
+    provider = get_history_provider()
+    candles = await provider.get_recent(limit=settings.history_limit)
+    indicators = discover_indicators()
+    loop = asyncio.get_running_loop()
+    executors = get_executors()
+    return await loop.run_in_executor(executors.calc, lambda: compute_all(indicators, candles))
+
+
+============================================================
+## FILE PATH: C:/Users/blue/Desktop/project/System Trading/Fake_Trading/tradingViewCustom/backend/server\models\__init__.py
+============================================================
+
+
+
+============================================================
+## FILE PATH: C:/Users/blue/Desktop/project/System Trading/Fake_Trading/tradingViewCustom/backend/server\models\candle.py
+============================================================
+
+from pydantic import BaseModel
+
+
+class Candle(BaseModel):
+    time: int
+    open: float
+    high: float
+    low: float
+    close: float
+
+
+============================================================
+## FILE PATH: C:/Users/blue/Desktop/project/System Trading/Fake_Trading/tradingViewCustom/backend/server\models\trading.py
+============================================================
+
+from __future__ import annotations
+from typing import Optional
+from pydantic import BaseModel, Field
+
+
+class SessionCreateRequest(BaseModel):
+    username: str = Field(min_length=1, max_length=64)
+    seed_balance: float = Field(default=10000.0, gt=0)
+
+
+class SessionCreateResponse(BaseModel):
+    session_id: str
+    username: str
+    seed_balance: float
+
+
+class OrderCreateRequest(BaseModel):
+    side: str  # buy | sell
+    order_type: str  # market | limit
+    quantity: float = Field(gt=0)
+    limit_price: Optional[float] = Field(default=None, gt=0)
+
+
+class AccountSnapshot(BaseModel):
+    session_id: str
+    username: str
+    balance: float
+    position_qty: float
+    average_price: float
+    realized_pnl: float
+    unrealized_pnl: float
+    equity: float
+
+
+class OrderRecord(BaseModel):
+    order_id: str
+    session_id: str
+    side: str
+    order_type: str
+    quantity: float
+    limit_price: Optional[float] = None
+    status: str
+    fill_price: Optional[float] = None
+    created_at: int
+
+
+============================================================
+## FILE PATH: C:/Users/blue/Desktop/project/System Trading/Fake_Trading/tradingViewCustom/backend/server\services\__init__.py
+============================================================
+
+
+
+============================================================
+## FILE PATH: C:/Users/blue/Desktop/project/System Trading/Fake_Trading/tradingViewCustom/backend/server\services\history_base.py
+============================================================
+
+from abc import ABC, abstractmethod
+from typing import Sequence
+
+from ..models.candle import Candle
+
+
+class HistoryProvider(ABC):
+    @abstractmethod
+    async def load(self) -> None:
+        """Initialize resources for history queries."""
+
+    @abstractmethod
+    async def get_recent(self, limit: int) -> Sequence[Candle]:
+        """Return recent candle history."""
+
+
+============================================================
+## FILE PATH: C:/Users/blue/Desktop/project/System Trading/Fake_Trading/tradingViewCustom/backend/server\services\history_dummy.py
+============================================================
+
+from typing import Sequence
+
+from ..models.candle import Candle
+from .history_base import HistoryProvider
+
+
+class DummyHistoryProvider(HistoryProvider):
+    def __init__(self) -> None:
+        self._candles = [
+            Candle(time=1700000000, open=100, high=110, low=95, close=105),
+            Candle(time=1700000060, open=105, high=115, low=102, close=112),
+            Candle(time=1700000120, open=112, high=120, low=108, close=118),
+        ]
+
+    async def load(self) -> None:
+        return None
+
+    async def get_recent(self, limit: int) -> Sequence[Candle]:
+        return self._candles[-limit:]
+
+
+============================================================
+## FILE PATH: C:/Users/blue/Desktop/project/System Trading/Fake_Trading/tradingViewCustom/backend/server\services\history_factory.py
+============================================================
+
+from pathlib import Path
+from concurrent.futures import Executor
+
+from .history_base import HistoryProvider
+from .history_dummy import DummyHistoryProvider
+from .history_feather import FeatherHistoryProvider
+
+
+def create_history_provider(data_file: Path, io_executor: Executor) -> HistoryProvider:
+    if data_file.exists() and data_file.suffix == ".feather":
+        return FeatherHistoryProvider(data_file, executor=io_executor)
+    return DummyHistoryProvider()
+
+
+============================================================
+## FILE PATH: C:/Users/blue/Desktop/project/System Trading/Fake_Trading/tradingViewCustom/backend/server\services\history_feather.py
+============================================================
+
+from __future__ import annotations
+
+import asyncio
+from concurrent.futures import Executor
+from pathlib import Path
+from typing import Sequence
+
+import pandas as pd
+
+from ..models.candle import Candle
+from .history_base import HistoryProvider
+
+_REQUIRED_PRICE_COLUMNS = ("open", "high", "low", "close")
+_TIME_CANDIDATE_COLUMNS = ("time", "timestamp", "datetime", "date")
+
+
+class FeatherHistoryProvider(HistoryProvider):
+    def __init__(self, file_path: Path, executor: Executor) -> None:
+        self.file_path = file_path
+        self.df: pd.DataFrame | None = None
+        self.executor = executor
+
+    def _read_feather(self) -> pd.DataFrame:
+        raw_df = pd.read_feather(self.file_path)
+        return self._normalize(raw_df)
+
+    def _normalize(self, raw_df: pd.DataFrame) -> pd.DataFrame:
+        if raw_df.empty:
+            return pd.DataFrame(columns=["time", "open", "high", "low", "close"])
+
+        columns_map = {str(col).lower(): col for col in raw_df.columns}
+
+        missing_prices = [name for name in _REQUIRED_PRICE_COLUMNS if name not in columns_map]
+        if missing_prices:
+            raise ValueError(f"missing required price columns: {missing_prices}")
+
+        time_key = next((name for name in _TIME_CANDIDATE_COLUMNS if name in columns_map), None)
+        if time_key is None:
+            raise ValueError("missing time column: one of time/timestamp/datetime/date is required")
+
+        frame = pd.DataFrame(
+            {
+                "time": raw_df[columns_map[time_key]],
+                "open": raw_df[columns_map["open"]],
+                "high": raw_df[columns_map["high"]],
+                "low": raw_df[columns_map["low"]],
+                "close": raw_df[columns_map["close"]],
+            }
+        )
+
+        if pd.api.types.is_datetime64_any_dtype(frame["time"]):
+            frame["time"] = frame["time"].astype("int64") // 10**9
+        elif pd.api.types.is_numeric_dtype(frame["time"]):
+            # Millisecond timestamps are common in exchange datasets.
+            if frame["time"].max() > 10**11:
+                frame["time"] = (frame["time"] // 1000).astype("int64")
+            else:
+                frame["time"] = frame["time"].astype("int64")
+        else:
+            frame["time"] = pd.to_datetime(frame["time"], utc=True).astype("int64") // 10**9
+
+        frame = frame.dropna(subset=["time", "open", "high", "low", "close"]).copy()
+        frame["time"] = frame["time"].astype("int64")
+        for key in _REQUIRED_PRICE_COLUMNS:
+            frame[key] = frame[key].astype("float64")
+
+        frame = frame.sort_values("time")
+        frame = frame.drop_duplicates(subset=["time"], keep="last")
+        return frame.reset_index(drop=True)
+
+    async def load(self) -> None:
+        loop = asyncio.get_running_loop()
+        self.df = await loop.run_in_executor(self.executor, self._read_feather)
+
+    async def get_recent(self, limit: int) -> Sequence[Candle]:
+        if self.df is None:
+            return []
+
+        recent_df = self.df.tail(limit)
+        candles: list[Candle] = []
+        for _, row in recent_df.iterrows():
+            candles.append(
+                Candle(
+                    time=int(row["time"]),
+                    open=float(row["open"]),
+                    high=float(row["high"]),
+                    low=float(row["low"]),
+                    close=float(row["close"]),
+                )
+            )
+        return candles
+
+
+============================================================
+## FILE PATH: C:/Users/blue/Desktop/project/System Trading/Fake_Trading/tradingViewCustom/backend/server\services\price_cache.py
+============================================================
+
+from __future__ import annotations
+from threading import RLock
+
+
+class PriceCache:
+    def __init__(self) -> None:
+        self._lock = RLock()
+        self._last_price: float | None = None
+
+    def set_last_price(self, price: float) -> None:
+        with self._lock:
+            self._last_price = price
+
+    def get_last_price(self) -> float | None:
+        with self._lock:
+            return self._last_price
+
+
+============================================================
+## FILE PATH: C:/Users/blue/Desktop/project/System Trading/Fake_Trading/tradingViewCustom/backend/server\services\trading\__init__.py
+============================================================
+
+
+
+============================================================
+## FILE PATH: C:/Users/blue/Desktop/project/System Trading/Fake_Trading/tradingViewCustom/backend/server\services\trading\base.py
+============================================================
+
+from abc import ABC, abstractmethod
+
+from ...models.trading import AccountSnapshot, OrderCreateRequest, OrderRecord, SessionCreateRequest, SessionCreateResponse
+
+
+class TradingService(ABC):
+    @abstractmethod
+    def create_session(self, payload: SessionCreateRequest) -> SessionCreateResponse:
+        ...
+
+    @abstractmethod
+    def get_account(self, session_id: str) -> AccountSnapshot:
+        ...
+
+    @abstractmethod
+    def create_order(self, session_id: str, payload: OrderCreateRequest) -> OrderRecord:
+        ...
+
+    @abstractmethod
+    def list_orders(self, session_id: str) -> list[OrderRecord]:
+        ...
+
+
+============================================================
+## FILE PATH: C:/Users/blue/Desktop/project/System Trading/Fake_Trading/tradingViewCustom/backend/server\services\trading\memory_service.py
+============================================================
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from threading import RLock
+import time
+import uuid
+
+from fastapi import HTTPException
+
+from ...models.trading import AccountSnapshot, OrderCreateRequest, OrderRecord, SessionCreateRequest, SessionCreateResponse
+from ..price_cache import PriceCache
+from .base import TradingService
+
+
+@dataclass
+class AccountState:
+    session_id: str
+    username: str
+    seed_balance: float
+    balance: float
+    position_qty: float = 0.0
+    average_price: float = 0.0
+    realized_pnl: float = 0.0
+    orders: list[OrderRecord] = field(default_factory=list)
+
+
+class InMemoryTradingService(TradingService):
+    def __init__(self, price_cache: PriceCache) -> None:
+        self._accounts: dict[str, AccountState] = {}
+        self._lock = RLock()
+        self._price_cache = price_cache
+
+    def create_session(self, payload: SessionCreateRequest) -> SessionCreateResponse:
+        with self._lock:
+            session_id = uuid.uuid4().hex
+            account = AccountState(
+                session_id=session_id,
+                username=payload.username,
+                seed_balance=float(payload.seed_balance),
+                balance=float(payload.seed_balance),
+            )
+            self._accounts[session_id] = account
+            return SessionCreateResponse(
+                session_id=session_id,
+                username=account.username,
+                seed_balance=account.seed_balance,
+            )
+
+    def _require_account(self, session_id: str) -> AccountState:
+        account = self._accounts.get(session_id)
+        if account is None:
+            raise HTTPException(status_code=404, detail="session not found")
+        return account
+
+    def _market_price(self) -> float:
+        px = self._price_cache.get_last_price()
+        if px is None:
+            raise HTTPException(status_code=400, detail="market price unavailable")
+        return px
+
+    def _apply_fill(self, account: AccountState, side: str, qty: float, price: float) -> None:
+        if side == "buy":
+            cost = qty * price
+            if account.balance < cost:
+                raise HTTPException(status_code=400, detail="insufficient balance")
+            new_qty = account.position_qty + qty
+            if new_qty <= 0:
+                account.position_qty = 0.0
+                account.average_price = 0.0
+            else:
+                account.average_price = ((account.average_price * account.position_qty) + (price * qty)) / new_qty
+                account.position_qty = new_qty
+            account.balance -= cost
+            return
+
+        if side == "sell":
+            if account.position_qty < qty:
+                raise HTTPException(status_code=400, detail="insufficient position")
+            pnl = (price - account.average_price) * qty
+            account.realized_pnl += pnl
+            account.position_qty -= qty
+            account.balance += price * qty
+            if account.position_qty == 0:
+                account.average_price = 0.0
+            return
+
+        raise HTTPException(status_code=400, detail="invalid side")
+
+    def create_order(self, session_id: str, payload: OrderCreateRequest) -> OrderRecord:
+        with self._lock:
+            account = self._require_account(session_id)
+            side = payload.side.lower()
+            order_type = payload.order_type.lower()
+
+            if order_type not in {"market", "limit"}:
+                raise HTTPException(status_code=400, detail="invalid order_type")
+            if side not in {"buy", "sell"}:
+                raise HTTPException(status_code=400, detail="invalid side")
+
+            market_price = self._market_price()
+            fill_price: float | None = None
+            status = "open"
+
+            if order_type == "market":
+                fill_price = market_price
+                status = "filled"
+            else:
+                if payload.limit_price is None:
+                    raise HTTPException(status_code=400, detail="limit_price is required for limit orders")
+                # naive immediate-or-resting evaluation against current price
+                if (side == "buy" and payload.limit_price >= market_price) or (
+                    side == "sell" and payload.limit_price <= market_price
+                ):
+                    fill_price = market_price
+                    status = "filled"
+
+            order = OrderRecord(
+                order_id=uuid.uuid4().hex,
+                session_id=session_id,
+                side=side,
+                order_type=order_type,
+                quantity=float(payload.quantity),
+                limit_price=payload.limit_price,
+                status=status,
+                fill_price=fill_price,
+                created_at=int(time.time()),
+            )
+
+            if status == "filled" and fill_price is not None:
+                self._apply_fill(account, side=side, qty=order.quantity, price=fill_price)
+
+            account.orders.append(order)
+            return order
+
+    def get_account(self, session_id: str) -> AccountSnapshot:
+        with self._lock:
+            account = self._require_account(session_id)
+            last = self._price_cache.get_last_price()
+            unrealized = 0.0
+            if last is not None and account.position_qty > 0:
+                unrealized = (last - account.average_price) * account.position_qty
+            equity = account.balance + (account.position_qty * (last or account.average_price))
+            return AccountSnapshot(
+                session_id=account.session_id,
+                username=account.username,
+                balance=round(account.balance, 6),
+                position_qty=round(account.position_qty, 6),
+                average_price=round(account.average_price, 6),
+                realized_pnl=round(account.realized_pnl, 6),
+                unrealized_pnl=round(unrealized, 6),
+                equity=round(equity, 6),
+            )
+
+    def list_orders(self, session_id: str) -> list[OrderRecord]:
+        with self._lock:
+            account = self._require_account(session_id)
+            return list(account.orders)
+
+
+============================================================
+## FILE PATH: C:/Users/blue/Desktop/project/System Trading/Fake_Trading/tradingViewCustom/backend/server\services\ws_manager.py
+============================================================
+
+from fastapi import WebSocket
+
+
+class ConnectionManager:
+    def __init__(self) -> None:
+        self.connections: set[WebSocket] = set()
+
+    async def connect(self, websocket: WebSocket) -> None:
+        await websocket.accept()
+        self.connections.add(websocket)
+
+    def disconnect(self, websocket: WebSocket) -> None:
+        self.connections.discard(websocket)
+
+    @property
+    def size(self) -> int:
+        return len(self.connections)
+
+    async def broadcast_json(self, data: dict) -> None:
+        stale = []
+        for connection in self.connections:
+            try:
+                await connection.send_json(data)
+            except Exception:
+                stale.append(connection)
+        for connection in stale:
+            self.disconnect(connection)
+
+
+============================================================
+## FILE PATH: C:/Users/blue/Desktop/project/System Trading/Fake_Trading/tradingViewCustom/backend/server\workers\__init__.py
+============================================================
+
+
+
+============================================================
+## FILE PATH: C:/Users/blue/Desktop/project/System Trading/Fake_Trading/tradingViewCustom/backend/server\workers\base.py
+============================================================
+
+from abc import ABC, abstractmethod
+
+from ..models.candle import Candle
+
+
+class MarketDataWorker(ABC):
+    @abstractmethod
+    async def next_candle(self) -> Candle:
+        """Produce next market candle."""
+
+
+============================================================
+## FILE PATH: C:/Users/blue/Desktop/project/System Trading/Fake_Trading/tradingViewCustom/backend/server\workers\binance_worker.py
+============================================================
+
+from __future__ import annotations
+
+import asyncio
+import json
+from ..core.config import settings
+from ..models.candle import Candle
+from .base import MarketDataWorker
+
+
+class BinanceMarketWorker(MarketDataWorker):
+    """Binance kline websocket worker.
+
+    실패 시 내부적으로 재연결/백오프를 수행하며, 서버 메인 루프를 중단시키지 않는다.
+    """
+
+    def __init__(self) -> None:
+        self._queue: asyncio.Queue[Candle] = asyncio.Queue(maxsize=2048)
+        self._runner_task: asyncio.Task | None = None
+
+    async def next_candle(self) -> Candle:
+        if self._runner_task is None or self._runner_task.done():
+            self._runner_task = asyncio.create_task(self._run())
+        return await self._queue.get()
+
+    async def _run(self) -> None:
+        backoff = 1.0
+        while True:
+            try:
+                await self._stream_loop()
+                backoff = 1.0
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:
+                print(f"binance worker reconnect: {exc}")
+                await asyncio.sleep(backoff)
+                backoff = min(backoff * 2, 30.0)
+
+    async def _stream_loop(self) -> None:
+        try:
+            import websockets
+        except Exception as exc:  # pragma: no cover - dependency/runtime environment
+            raise RuntimeError("websockets package is required for BinanceMarketWorker") from exc
+
+        symbol = settings.binance_symbol.lower()
+        interval = settings.binance_interval
+        stream_url = f"{settings.binance_ws_base_url}/ws/{symbol}@kline_{interval}"
+
+        async with websockets.connect(stream_url, ping_interval=20, ping_timeout=20) as socket:
+            async for message in socket:
+                payload = json.loads(message)
+                kline = payload.get("k")
+                if not kline:
+                    continue
+
+                candle = Candle(
+                    time=int(kline["t"]) // 1000,
+                    open=float(kline["o"]),
+                    high=float(kline["h"]),
+                    low=float(kline["l"]),
+                    close=float(kline["c"]),
+                )
+
+                if self._queue.full():
+                    _ = self._queue.get_nowait()
+                self._queue.put_nowait(candle)
+
+
+class BinanceFallbackRandomWorker(MarketDataWorker):
+    """Binance 연결 불가 시 랜덤 캔들로 안전하게 폴백하는 래퍼."""
+
+    def __init__(self) -> None:
+        from .random_worker import RandomMarketWorker
+
+        self._binance = BinanceMarketWorker()
+        self._fallback = RandomMarketWorker(seed_price=120.0)
+        self._use_fallback = False
+
+    async def next_candle(self) -> Candle:
+        if self._use_fallback:
+            return await self._fallback.next_candle()
+
+        try:
+            return await asyncio.wait_for(self._binance.next_candle(), timeout=5.0)
+        except Exception as exc:
+            print(f"binance unavailable, fallback to random worker: {exc}")
+            self._use_fallback = True
+            return await self._fallback.next_candle()
+
+
+============================================================
+## FILE PATH: C:/Users/blue/Desktop/project/System Trading/Fake_Trading/tradingViewCustom/backend/server\workers\random_worker.py
+============================================================
+
+import random
+import time
+
+from ..models.candle import Candle
+from .base import MarketDataWorker
+
+
+class RandomMarketWorker(MarketDataWorker):
+    def __init__(self, seed_price: float = 120.0):
+        self.price = seed_price
+
+    async def next_candle(self) -> Candle:
+        delta = random.uniform(-2.0, 2.0)
+        open_price = self.price
+        close_price = max(1.0, self.price + delta)
+        high_price = max(open_price, close_price) + random.uniform(0, 1.5)
+        low_price = min(open_price, close_price) - random.uniform(0, 1.5)
+        self.price = close_price
+        return Candle(
+            time=int(time.time()),
+            open=round(open_price, 2),
+            high=round(high_price, 2),
+            low=round(low_price, 2),
+            close=round(close_price, 2),
+        )
+
+
+============================================================
+## FILE PATH: C:/Users/blue/Desktop/project/System Trading/Fake_Trading/tradingViewCustom/backend/server\workers\registry.py
+============================================================
+
+from importlib import import_module
+import pkgutil
+
+from .base import MarketDataWorker
+
+
+def discover_worker_classes() -> dict[str, type[MarketDataWorker]]:
+    workers: dict[str, type[MarketDataWorker]] = {}
+    package = import_module(__package__)
+    
+    for _, module_name, _ in pkgutil.iter_modules(package.__path__):
+        if module_name in {"base", "registry"}:
+            continue
+        module = import_module(f"{__package__}.{module_name}")
+        for value in module.__dict__.values():
+            if isinstance(value, type) and issubclass(value, MarketDataWorker) and value is not MarketDataWorker:
+                workers[value.__name__] = value
+
+    return workers
+
+
+def create_worker(worker_name: str) -> MarketDataWorker:
+    workers = discover_worker_classes()
+    worker_cls = workers.get(worker_name)
+    if worker_cls is None:
+        worker_cls = workers.get("RandomMarketWorker")
+    if worker_cls is None:
+        raise RuntimeError("No MarketDataWorker implementation found")
+    return worker_cls()
