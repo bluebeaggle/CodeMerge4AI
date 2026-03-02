@@ -1,6 +1,6 @@
 ================================================================================
 MERGED CODEBASE
-Generated: 2026-03-02 16:08:25.757206
+Generated: 2026-03-02 16:13:55.817104
 Root Folder: C:/Users/blue/Desktop/project/System Trading/Fake_Trading/tradingViewCustom/frontend
 ================================================================================
 
