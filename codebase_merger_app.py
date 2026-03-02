@@ -29,6 +29,20 @@ INCLUDE_EXTENSIONS = {
     ".js",      # frontend
     ".html",
     ".css",
+    ".c",
+    ".h",
+    ".cpp",
+    ".hpp",
+    ".java",
+    ".kt",
+    ".rs",
+    ".go",
+    ".swift",
+    ".php",
+    ".rb",
+    ".ts",
+    ".tsx",
+    ".vue",
 }
 
 
