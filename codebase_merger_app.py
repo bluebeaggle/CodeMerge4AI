@@ -43,6 +43,9 @@ INCLUDE_EXTENSIONS = {
     ".ts",
     ".tsx",
     ".vue",
+    ".json",
+    ".yaml",
+    ".md",
 }
 
 
