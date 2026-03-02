@@ -1,12 +1,13 @@
 ================================================================================
 MERGED CODEBASE
-Generated: 2026-03-02 14:53:27.589488
+Generated: 2026-03-02 15:16:27.294655
 Root Folder: C:/Users/blue/Desktop/project/System Trading/Fake_Trading/tradingViewCustom/backend/server
 ================================================================================
 
 PROJECT STRUCTURE
 ================================================================================
 
+📂 server
 ├── 📁 api
 │   ├── 📄 __init__.py
 │   ├── 📄 routes_health.py
@@ -45,8 +46,7 @@ PROJECT STRUCTURE
 │   └── 📄 registry.py
 ├── 📄 __init__.py
 ├── 📄 main.py
-├── 📄 main_dependencies.py
-└── 📄 merged_codebase.txt
+└── 📄 main_dependencies.py
 
 
 ================================================================================

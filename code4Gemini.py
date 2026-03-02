@@ -125,7 +125,9 @@ def main():
     collected_files = build_tree_and_collect(folder_path)
     print("\n✅ 트리 출력 완료!")
 
-    output_path = os.path.join(folder_path, OUTPUT_FILENAME)
+    # output_path = os.path.join(folder_path, OUTPUT_FILENAME)
+    output_path = os.path.join(os.getcwd(), OUTPUT_FILENAME)
+
 
     print(f"\n🔄 파일 병합 시작 ({len(collected_files)}개 .py 파일 발견)")
 
@@ -141,7 +143,8 @@ def main():
             # 폴더 구조도 같이 저장
             outfile.write("PROJECT STRUCTURE\n")
             outfile.write("=" * 80 + "\n\n")
-
+            outfile.write(f"📂 {folder_name}\n")
+            
             # 트리 재출력 (파일에 기록용)
             def write_tree(path, prefix=""):
                 try:
