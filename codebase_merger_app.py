@@ -23,14 +23,6 @@ IGNORE_LIST = {
 }
 MAX_FILE_SIZE_MB = 10
 
-INCLUDE_EXTENSIONS = {
-    ".py",      # backend
-    ".js",      # frontend
-    ".html",
-    ".css",
-}
-
-
 CACHE_DIR = os.path.join(os.path.expanduser("~"), ".codebase_merger", "cache")
 HISTORY_FILE = os.path.join(os.path.expanduser("~"), ".codebase_merger", "history.json")
 os.makedirs(CACHE_DIR, exist_ok=True)
@@ -119,18 +111,16 @@ def collect_py_files(path, visited=None):
             continue
         if entry.is_dir(follow_symlinks=False):
             files.extend(collect_py_files(entry.path, visited))
-        else:
-            ext = os.path.splitext(entry.name)[1].lower()
-            if ext in INCLUDE_EXTENSIONS:
-                files.append(entry.path)
-
+        elif entry.name.endswith(".py"):
+            files.append(entry.path)
     return files
 
 
-def merge_codebase(folder_path, output_path, log_fn):
+def merge_codebase(folder_path, output_path, log_fn, mode="full"):
     folder_name = os.path.basename(folder_path)
     log_fn(f"📂 폴더: {folder_path}")
     log_fn(f"🚫 무시 목록: {', '.join(sorted(IGNORE_LIST))}\n")
+    log_fn(f"⚙️  모드: {'전체 내용' if mode == 'full' else '폴더 구조만'}\n")
 
     tree_lines = build_tree_lines(folder_path)
     log_fn(f"📂 {folder_name}")
@@ -138,14 +128,12 @@ def merge_codebase(folder_path, output_path, log_fn):
         log_fn(line)
     log_fn("\n✅ 트리 출력 완료!")
 
-    py_files = collect_py_files(folder_path)
-    log_fn(f"\n🔄 파일 병합 시작 ({len(py_files)}개 .py 파일 발견)")
-
     with open(output_path, "w", encoding="utf-8") as out:
         out.write("=" * 80 + "\n")
         out.write("MERGED CODEBASE\n")
         out.write(f"Generated: {datetime.now()}\n")
         out.write(f"Root Folder: {folder_path}\n")
+        out.write(f"Mode: {'Full Content' if mode == 'full' else 'Tree Only'}\n")
         out.write("=" * 80 + "\n\n")
         out.write("PROJECT STRUCTURE\n")
         out.write("=" * 80 + "\n\n")
@@ -153,25 +141,31 @@ def merge_codebase(folder_path, output_path, log_fn):
         for line in tree_lines:
             out.write(line + "\n")
         out.write("\n\n")
-        out.write("=" * 80 + "\n")
-        out.write("PYTHON FILE CONTENTS\n")
-        out.write("=" * 80 + "\n")
 
-        for filepath in sorted(py_files):
-            if MAX_FILE_SIZE_MB:
-                size_mb = os.path.getsize(filepath) / (1024 * 1024)
-                if size_mb > MAX_FILE_SIZE_MB:
-                    out.write(f"\n# [SKIPPED - TOO LARGE] {filepath}\n")
-                    log_fn(f"⚠️ 스킵 (너무 큰 파일): {filepath}")
-                    continue
-            out.write("\n\n" + "=" * 60 + "\n")
-            out.write(f"## FILE PATH: {filepath}\n")
-            out.write("=" * 60 + "\n\n")
-            out.write(safe_read_file(filepath))
-            log_fn(f"  ✓ {os.path.relpath(filepath, folder_path)}")
+        if mode == "tree":
+            log_fn("\n✅ 폴더 구조 저장 완료!")
+        else:
+            py_files = collect_py_files(folder_path)
+            log_fn(f"\n🔄 파일 병합 시작 ({len(py_files)}개 파일 발견)")
 
-    log_fn(f"\n✅ 병합 완료!")
-    log_fn(f"📄 저장 경로: {output_path}")
+            out.write("=" * 80 + "\n")
+            out.write("FILE CONTENTS\n")
+            out.write("=" * 80 + "\n")
+
+            for filepath in sorted(py_files):
+                if MAX_FILE_SIZE_MB:
+                    size_mb = os.path.getsize(filepath) / (1024 * 1024)
+                    if size_mb > MAX_FILE_SIZE_MB:
+                        out.write(f"\n# [SKIPPED - TOO LARGE] {filepath}\n")
+                        log_fn(f"⚠️ 스킵 (너무 큰 파일): {filepath}")
+                        continue
+                out.write("\n\n" + "=" * 60 + "\n")
+                out.write(f"## FILE PATH: {filepath}\n")
+                out.write("=" * 60 + "\n\n")
+                out.write(safe_read_file(filepath))
+                log_fn(f"  ✓ {os.path.relpath(filepath, folder_path)}")
+
+            log_fn(f"\n✅ 병합 완료!")
 
 
 # ─── GUI ──────────────────────────────────────────────────────────────────────
@@ -184,6 +178,7 @@ class App(ctk.CTk):
         self.minsize(900, 600)
         self.configure(fg_color="#0f0f13")
         self._history = load_history()
+        self._mode_var = tk.StringVar(value="full")  # "full" | "tree"
         self._build_ui()
         self._refresh_history()
 
@@ -310,6 +305,7 @@ class App(ctk.CTk):
         self._make_field(card, "OUTPUT FOLDER", self.output_var,
                          "저장 위치...", self._browse_output)
         self._make_filename_field(card)
+        self._make_mode_field(card)
 
         # RUN 버튼
         self.run_btn = ctk.CTkButton(
@@ -405,7 +401,59 @@ class App(ctk.CTk):
         ctk.CTkEntry(parent, textvariable=self.filename_var,
                      font=ctk.CTkFont(family="Courier New", size=11),
                      fg_color="#0f0f13", border_color="#2d2d3d",
-                     text_color="#e2e8f0", height=34).pack(fill="x", padx=16, pady=(0, 14))
+                     text_color="#e2e8f0", height=34).pack(fill="x", padx=16, pady=(0, 6))
+
+    def _make_mode_field(self, parent):
+        ctk.CTkLabel(parent, text="OUTPUT MODE",
+                     font=ctk.CTkFont(size=10, weight="bold"),
+                     text_color="#6366f1").pack(anchor="w", padx=16, pady=(8, 6))
+
+        row = ctk.CTkFrame(parent, fg_color="transparent")
+        row.pack(fill="x", padx=16, pady=(0, 14))
+
+        for value, label, desc in [
+            ("full",  "📄 전체 내용",   "폴더 구조 + 파일 내용"),
+            ("tree",  "🌲 구조만",      "폴더 트리만 출력"),
+        ]:
+            item = ctk.CTkFrame(row, fg_color="#0f0f13", corner_radius=8, cursor="hand2")
+            item.pack(side="left", expand=True, fill="x", padx=(0, 6) if value == "full" else (0, 0))
+
+            radio = ctk.CTkRadioButton(
+                item,
+                text=label,
+                variable=self._mode_var,
+                value=value,
+                font=ctk.CTkFont(size=12, weight="bold"),
+                text_color="#e2e8f0",
+                fg_color="#6366f1",
+                hover_color="#4f46e5",
+                border_color="#3d3d5d",
+            )
+            radio.pack(anchor="w", padx=10, pady=(8, 2))
+
+            desc_label = ctk.CTkLabel(
+                item, text=desc,
+                font=ctk.CTkFont(size=9),
+                text_color="#475569"
+            )
+            desc_label.pack(anchor="w", padx=28, pady=(0, 8))
+
+            # 박스 전체 클릭 시 선택
+            def _select(e, v=value):
+                self._mode_var.set(v)
+
+            for widget in [item, radio, desc_label]:
+                widget.bind("<Button-1>", _select)
+
+            # 호버 시 박스 밝아지게
+            def _on_enter(e, f=item):
+                f.configure(fg_color="#1a1a2e")
+            def _on_leave(e, f=item):
+                f.configure(fg_color="#0f0f13")
+
+            for widget in [item, radio, desc_label]:
+                widget.bind("<Enter>", _on_enter)
+                widget.bind("<Leave>", _on_leave)
 
     # ── 브라우저 ──────────────────────────────────────────────────────────────
 
@@ -481,7 +529,8 @@ class App(ctk.CTk):
             real_path = os.path.join(out_dir, fname)
 
             try:
-                merge_codebase(src, cache_path, self._log)
+                mode = self._mode_var.get()
+                merge_codebase(src, cache_path, self._log, mode)
 
                 # 실제 파일도 복사
                 shutil.copy2(cache_path, real_path)
@@ -499,6 +548,7 @@ class App(ctk.CTk):
                 save_history(self._history)
                 self.after(0, self._refresh_history)
                 self._log(f"\n💾 실제 파일: {real_path}")
+                self._log(f"📄 저장 경로: {real_path}")
 
             except Exception as e:
                 self._log(f"\n❌ 오류 발생: {e}")
