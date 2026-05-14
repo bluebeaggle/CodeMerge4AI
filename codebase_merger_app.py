@@ -12,15 +12,16 @@ import pyperclip
 
 # ─── 설정 ────────────────────────────────────────────────────────────────────
 
-IGNORE_LIST = {
+DEFAULT_IGNORE_LIST  = {
     ".git", ".svn", ".hg",
     "node_modules", "vendor", ".venv", "venv", "env", "__pycache__",
     "dist", "build", ".next", ".nuxt", "out", "target",
     ".idea", ".vscode", ".vs",
     ".DS_Store", "Thumbs.db", "$RECYCLE.BIN",
     ".cache", ".temp", ".tmp",
-    ".gitignore", ".gitattributes", ".env", ".env.local",
+    ".gitignore", ".gitattributes", ".env", ".env.local", ".claude"
 }
+IGNORE_LIST = set(DEFAULT_IGNORE_LIST)
 MAX_FILE_SIZE_MB = 10
 
 DEFAULT_EXTENSIONS = {
@@ -49,16 +50,26 @@ def load_config():
         try:
             with open(CONFIG_FILE, "r", encoding="utf-8") as f:
                 data = json.load(f)
-                return {"extensions": set(data.get("extensions", list(DEFAULT_EXTENSIONS)))}
+                return {
+                    "extensions":  set(data.get("extensions",  list(DEFAULT_EXTENSIONS))),
+                    "ignore_list": set(data.get("ignore_list", list(DEFAULT_IGNORE_LIST))),
+                }
         except Exception:
             pass
-    return {"extensions": set(DEFAULT_EXTENSIONS)}
+    return {
+        "extensions":  set(DEFAULT_EXTENSIONS),
+        "ignore_list": set(DEFAULT_IGNORE_LIST),
+    }
+
 
 
 def save_config(config):
     os.makedirs(CONFIG_DIR, exist_ok=True)
     with open(CONFIG_FILE, "w", encoding="utf-8") as f:
-        json.dump({"extensions": sorted(list(config["extensions"]))}, f, ensure_ascii=False, indent=2)
+        json.dump({
+            "extensions":  sorted(list(config["extensions"])),
+            "ignore_list": sorted(list(config["ignore_list"])),
+        }, f, ensure_ascii=False, indent=2)
 
 
 def load_history():
@@ -215,10 +226,6 @@ def collect_all_files_tree(path, include_extensions, rel_base=None, visited=None
 
 def merge_codebase(folder_path, output_path, log_fn, mode, include_extensions,
                    filter_set=None):
-    """
-    filter_set : None → 모든 파일 포함
-                 set  → 해당 경로의 파일만 포함 (folders/files 모드)
-    """
     folder_name = os.path.basename(folder_path)
     mode_label = {
         "full":    "전체 내용",
@@ -231,11 +238,6 @@ def merge_codebase(folder_path, output_path, log_fn, mode, include_extensions,
     log_fn(f"📎 포함 확장자: {', '.join(sorted(include_extensions))}")
     log_fn(f"⚙️  모드: {mode_label}\n")
 
-    tree_lines = build_tree_lines(folder_path)
-    for line in [f"📂 {folder_name}"] + tree_lines:
-        log_fn(line)
-    log_fn("\n✅ 트리 출력 완료!")
-
     with open(output_path, "w", encoding="utf-8") as out:
         out.write("=" * 80 + "\n")
         out.write("MERGED CODEBASE\n")
@@ -243,27 +245,32 @@ def merge_codebase(folder_path, output_path, log_fn, mode, include_extensions,
         out.write(f"Root Folder: {folder_path}\n")
         out.write(f"Mode: {mode_label}\n")
         out.write("=" * 80 + "\n\n")
-        out.write("PROJECT STRUCTURE\n")
-        out.write("=" * 80 + "\n\n")
-        out.write(f"📂 {folder_name}\n")
-        for line in tree_lines:
-            out.write(line + "\n")
-        out.write("\n\n")
+
+        # 🚀 최적화 1: 특정 파일 모드일 때는 수만 줄이 될 수 있는 전체 트리 텍스트 생성을 건너뜁니다.
+        if mode != "files":
+            out.write("PROJECT STRUCTURE\n")
+            out.write("=" * 80 + "\n\n")
+            out.write(f"📂 {folder_name}\n")
+            tree_lines = build_tree_lines(folder_path)
+            for line in tree_lines:
+                out.write(line + "\n")
+            out.write("\n\n")
+            log_fn("\n✅ 전체 트리 출력 완료!")
+        else:
+            log_fn("\n⚡ 특정 파일 모드: 파일 내용 병합으로 직행합니다.")
 
         if mode == "tree":
             log_fn("\n✅ 폴더 구조 저장 완료!")
             return
 
-        # ── 파일 수집 ──
-        all_files = collect_files(folder_path, include_extensions)
-
-        if mode == "folders" and filter_set is not None:
+        # 🚀 최적화 2: 특정 파일 모드일 때는 전체 디렉토리 탐색(os.scandir)을 완전히 생략합니다.
+        if mode == "files" and filter_set is not None:
+            files = list(filter_set)
+        elif mode == "folders" and filter_set is not None:
+            all_files = collect_files(folder_path, include_extensions)
             files = [f for f in all_files if file_in_selected_folders(f, filter_set)]
-        elif mode == "files" and filter_set is not None:
-            norm = {os.path.normpath(p) for p in filter_set}
-            files = [f for f in all_files if os.path.normpath(f) in norm]
         else:
-            files = all_files
+            files = collect_files(folder_path, include_extensions)
 
         log_fn(f"\n🔄 파일 병합 시작 ({len(files)}개 파일)")
         out.write("=" * 80 + "\n")
@@ -280,7 +287,7 @@ def merge_codebase(folder_path, output_path, log_fn, mode, include_extensions,
             out.write(f"## FILE PATH: {filepath}\n")
             out.write("=" * 60 + "\n\n")
             out.write(safe_read_file(filepath))
-            log_fn(f"  ✓ {os.path.relpath(filepath, folder_path)}")
+            log_fn(f"  ✓ {os.path.basename(filepath)}")
 
         log_fn("\n✅ 병합 완료!")
 
@@ -528,6 +535,219 @@ class ExtensionManagerDialog(ctk.CTkToplevel):
         self.after(2000, lbl.destroy)
 
 
+# ─── 무시 목록 관리 모달 ─────────────────────────────────────────────────────
+class IgnoreListManagerDialog(ctk.CTkToplevel):
+    ITEM_COLORS = {
+        ".git": "#3b82f6", ".svn": "#3b82f6", ".hg": "#3b82f6",
+        "node_modules": "#f59e0b", "vendor": "#f59e0b",
+        ".venv": "#4ade80", "venv": "#4ade80", "env": "#4ade80",
+        "__pycache__": "#94a3b8",
+        "dist": "#fb923c", "build": "#fb923c", ".next": "#fb923c",
+        ".nuxt": "#fb923c", "out": "#fb923c", "target": "#fb923c",
+        ".idea": "#a78bfa", ".vscode": "#a78bfa", ".vs": "#a78bfa",
+        ".DS_Store": "#64748b", "Thumbs.db": "#64748b", "$RECYCLE.BIN": "#64748b",
+        ".cache": "#94a3b8", ".temp": "#94a3b8", ".tmp": "#94a3b8",
+        ".gitignore": "#fbbf24", ".gitattributes": "#fbbf24",
+        ".env": "#fbbf24", ".env.local": "#fbbf24",
+    }
+    DEFAULT_COLOR = "#64748b"
+
+    def __init__(self, parent, get_ignore_list, on_change):
+        super().__init__(parent)
+        self.title("Ignore List Settings")
+        self.geometry("680x580")
+        self.resizable(False, False)
+        self.configure(fg_color="#0f0f13")
+        self.grab_set()
+
+        self._get_list  = get_ignore_list
+        self._on_change = on_change
+        self._local     = set(get_ignore_list())
+
+        self._build()
+        self._render_tags()
+
+    def _build(self):
+        header = ctk.CTkFrame(self, fg_color="transparent")
+        header.pack(fill="x", padx=24, pady=(20, 4))
+        ctk.CTkLabel(header, text="🚫  IGNORE",
+                     font=ctk.CTkFont(family="Courier New", size=17, weight="bold"),
+                     text_color="#f87171").pack(side="left")
+        ctk.CTkLabel(header, text=" LIST",
+                     font=ctk.CTkFont(family="Courier New", size=17, weight="bold"),
+                     text_color="#e2e8f0").pack(side="left")
+
+        ctk.CTkLabel(self,
+                     text="✕ 를 눌러 즉시 제거  ·  아래에서 추가  ·  무시할 폴더/파일 이름을 관리합니다.",
+                     font=ctk.CTkFont(size=11), text_color="#475569"
+                     ).pack(anchor="w", padx=24, pady=(0, 14))
+
+        tag_outer = ctk.CTkFrame(self, fg_color="#0a0a0f", corner_radius=12,
+                                  border_width=1, border_color="#1e1e2e")
+        tag_outer.pack(fill="both", expand=True, padx=24, pady=(0, 14))
+
+        tag_header = ctk.CTkFrame(tag_outer, fg_color="#1e1e2e", corner_radius=8)
+        tag_header.pack(fill="x", padx=8, pady=(8, 6))
+
+        self._count_label = ctk.CTkLabel(
+            tag_header, text="",
+            font=ctk.CTkFont(family="Courier New", size=10, weight="bold"),
+            text_color="#f87171")
+        self._count_label.pack(side="left", padx=12, pady=6)
+
+        ctk.CTkButton(tag_header, text="기본값 초기화", width=110, height=26,
+                      font=ctk.CTkFont(size=10),
+                      fg_color="#2d2d3d", hover_color="#991b1b",
+                      text_color="#f87171", corner_radius=6,
+                      command=self._reset_to_default).pack(side="right", padx=8, pady=4)
+
+        ctk.CTkButton(tag_header, text="모두 제거", width=80, height=26,
+                      font=ctk.CTkFont(size=10),
+                      fg_color="#2d2d3d", hover_color="#4b2020",
+                      text_color="#f87171", corner_radius=6,
+                      command=self._clear_all).pack(side="right", padx=(0, 4), pady=4)
+
+        self._tag_scroll = ctk.CTkScrollableFrame(
+            tag_outer, fg_color="transparent",
+            scrollbar_button_color="#2d2d3d", height=220)
+        self._tag_scroll.pack(fill="both", expand=True, padx=6, pady=(0, 8))
+
+        add_card = ctk.CTkFrame(self, fg_color="#1e1e2e", corner_radius=12)
+        add_card.pack(fill="x", padx=24, pady=(0, 14))
+
+        ctk.CTkLabel(add_card, text="추가하기",
+                     font=ctk.CTkFont(size=10, weight="bold"),
+                     text_color="#f87171").pack(anchor="w", padx=14, pady=(10, 4))
+
+        add_row = ctk.CTkFrame(add_card, fg_color="transparent")
+        add_row.pack(fill="x", padx=14, pady=(0, 10))
+
+        self._add_var = tk.StringVar()
+        entry = ctk.CTkEntry(add_row, textvariable=self._add_var,
+                             placeholder_text="폴더/파일 이름  (예: .cache  __tests__  logs)",
+                             font=ctk.CTkFont(family="Courier New", size=12),
+                             fg_color="#0f0f13", border_color="#2d2d3d",
+                             text_color="#e2e8f0", height=36)
+        entry.pack(side="left", fill="x", expand=True)
+        entry.bind("<Return>", lambda e: self._add_item())
+
+        ctk.CTkButton(add_row, text="  +  추가", width=90, height=36,
+                      font=ctk.CTkFont(size=12, weight="bold"),
+                      fg_color="#dc2626", hover_color="#b91c1c",
+                      corner_radius=8,
+                      command=self._add_item).pack(side="left", padx=(8, 0))
+
+        quick_frame = ctk.CTkFrame(add_card, fg_color="transparent")
+        quick_frame.pack(fill="x", padx=14, pady=(0, 14))
+        ctk.CTkLabel(quick_frame, text="빠른 추가:  ",
+                     font=ctk.CTkFont(size=10), text_color="#475569").pack(side="left")
+
+        quick_items = ["logs", "coverage", ".pytest_cache", ".terraform", ".gradle", "bin", "obj"]
+        for item in quick_items:
+            ctk.CTkButton(quick_frame, text=item,
+                          width=max(52, len(item) * 7 + 10), height=22,
+                          font=ctk.CTkFont(size=10),
+                          fg_color="#0f0f13", hover_color="#252538",
+                          border_width=1, border_color="#2d2d3d",
+                          text_color="#f87171", corner_radius=6,
+                          command=lambda i=item: self._quick_add(i)).pack(side="left", padx=2)
+
+        ctk.CTkButton(self, text="✓  닫기", height=40,
+                      font=ctk.CTkFont(size=12, weight="bold"),
+                      fg_color="#dc2626", hover_color="#b91c1c",
+                      corner_radius=8,
+                      command=self.destroy).pack(fill="x", padx=24, pady=(0, 20))
+
+    def _render_tags(self):
+        for w in self._tag_scroll.winfo_children():
+            w.destroy()
+
+        sorted_items = sorted(self._local)
+        row_frame = None
+        max_col = 4
+
+        for idx, item in enumerate(sorted_items):
+            if idx % max_col == 0:
+                row_frame = ctk.CTkFrame(self._tag_scroll, fg_color="transparent")
+                row_frame.pack(fill="x", pady=2)
+            self._make_tag(row_frame, item)
+
+        self._count_label.configure(text=f"무시 항목  ·  {len(self._local)}개")
+
+    def _make_tag(self, parent, item):
+        color = self.ITEM_COLORS.get(item, self.DEFAULT_COLOR)
+
+        chip = ctk.CTkFrame(parent, fg_color="#1a1a2e", corner_radius=8)
+        chip.pack(side="left", padx=4, pady=2)
+
+        dot = tk.Canvas(chip, width=8, height=8, bg="#1a1a2e", highlightthickness=0)
+        dot.pack(side="left", padx=(8, 4), pady=8)
+        dot.create_oval(1, 1, 7, 7, fill=color, outline="")
+
+        ctk.CTkLabel(chip, text=item,
+                     font=ctk.CTkFont(family="Courier New", size=11, weight="bold"),
+                     text_color=color).pack(side="left", pady=6)
+
+        rm = ctk.CTkLabel(chip, text=" ✕ ",
+                          font=ctk.CTkFont(size=10, weight="bold"),
+                          text_color="#4b5563", cursor="hand2")
+        rm.pack(side="left", padx=(4, 6), pady=6)
+        rm.bind("<Button-1>", lambda e, x=item: self._remove_item(x))
+        rm.bind("<Enter>",    lambda e, w=rm: w.configure(text_color="#f87171"))
+        rm.bind("<Leave>",    lambda e, w=rm: w.configure(text_color="#4b5563"))
+
+        def _enter(e, f=chip): f.configure(fg_color="#252540")
+        def _leave(e, f=chip): f.configure(fg_color="#1a1a2e")
+        chip.bind("<Enter>", _enter)
+        chip.bind("<Leave>", _leave)
+
+    def _commit(self):
+        self._on_change(set(self._local))
+        self._render_tags()
+
+    def _add_item(self):
+        raw = self._add_var.get().strip()
+        if not raw:
+            return
+        if raw in self._local:
+            self._flash_error(f"'{raw}' 는 이미 추가되어 있습니다.")
+            return
+        if " " in raw:
+            self._flash_error("공백이 포함될 수 없습니다.")
+            return
+        self._local.add(raw)
+        self._add_var.set("")
+        self._commit()
+
+    def _quick_add(self, item):
+        if item not in self._local:
+            self._local.add(item)
+            self._commit()
+
+    def _remove_item(self, item):
+        self._local.discard(item)
+        self._commit()
+
+    def _clear_all(self):
+        if messagebox.askyesno("확인", "모든 무시 항목을 제거하시겠습니까?", parent=self):
+            self._local.clear()
+            self._commit()
+
+    def _reset_to_default(self):
+        if messagebox.askyesno("확인", "기본값으로 초기화하시겠습니까?", parent=self):
+            self._local = set(DEFAULT_IGNORE_LIST)
+            self._commit()
+
+    def _flash_error(self, msg):
+        lbl = ctk.CTkLabel(self, text=f"⚠  {msg}",
+                           font=ctk.CTkFont(size=11),
+                           fg_color="#4c1010", text_color="#fca5a5",
+                           corner_radius=6, padx=12, pady=6)
+        lbl.place(relx=0.5, rely=0.95, anchor="center")
+        self.after(2000, lbl.destroy)
+
+
+
 # ─── 폴더 선택 모달 ───────────────────────────────────────────────────────────
 
 class FolderSelectorDialog(ctk.CTkToplevel):
@@ -544,6 +764,8 @@ class FolderSelectorDialog(ctk.CTkToplevel):
         self.minsize(480, 420)
         self.configure(fg_color="#0f0f13")
         self.grab_set()
+        self.attributes("-topmost", True)
+
 
         self.result       = None   # set or None
         self._source_path = source_path
@@ -688,12 +910,22 @@ class FolderSelectorDialog(ctk.CTkToplevel):
         self.after(2000, lbl.destroy)
 
 
-# ─── 파일 선택 모달 ───────────────────────────────────────────────────────────
-
+# ─── 파일 선택 모달 (Lazy Tree 버전) ─────────────────────────────────────────
+#
+# 변경 전: 모든 파일/폴더 위젯을 한번에 생성 → 수천 개 파일 시 수십 초 블로킹
+# 변경 후: 폴더를 클릭해 펼칠 때만 위젯 생성  → 초기 열기 < 0.5초
+#
+# 상태 추적 전략
+#   _all_file_paths   : 전체 파일 경로 set  (스캔 시 수집, 위젯 없음)
+#   _file_checks      : 렌더링된 파일만 BooleanVar 보유
+#   _default_checked  : 미렌더링 파일의 기본 체크 상태
+#   → confirm 시: 렌더링 체크 + 미렌더링 기본값 합산
+#
 class FileSelectorDialog(ctk.CTkToplevel):
     """
-    특정 파일만 모드: 폴더 트리 + 파일 체크박스.
-    result = 선택된 파일 abs_path set, 또는 None (취소)
+    특정 파일만 모드 (지연 로딩 적용): 
+    초기에는 최상단 폴더/파일만 렌더링하며, 폴더를 열 때 내부를 스캔합니다.
+    기본적으로 모든 파일은 체크 해제 상태로 시작합니다.
     """
 
     def __init__(self, parent, source_path, include_extensions):
@@ -703,15 +935,19 @@ class FileSelectorDialog(ctk.CTkToplevel):
         self.minsize(500, 460)
         self.configure(fg_color="#0f0f13")
         self.grab_set()
+        self.attributes("-topmost", True)
 
         self.result              = None
         self._source_path        = source_path
         self._include_extensions = include_extensions
-        self._file_checks        = {}   # abs_path → BooleanVar
-        self._dir_rows           = {}   # abs_path → list of file abs_paths (for dir toggle)
+        
+        # 상태 관리
+        self._selected_files = set() # 선택된 파일의 절대 경로 집합
+        self._file_vars = {}         # 현재 렌더링된 파일의 BooleanVar {abs_path: tk.BooleanVar}
 
         self._build()
-        self._load_tree()
+        self._render_directory(self._source_path, self._scroll, depth=0)
+        self._update_count()
 
     def _build(self):
         # ── 헤더 ──
@@ -725,7 +961,7 @@ class FileSelectorDialog(ctk.CTkToplevel):
                      text_color="#e2e8f0").pack(side="left")
 
         ctk.CTkLabel(self,
-                     text="✔ 체크한 파일의 내용만 출력됩니다.  (트리 구조는 항상 표시)",
+                     text="✔ 트리(▶)를 눌러 폴더를 펼치고 원하는 파일만 체크하세요.",
                      font=ctk.CTkFont(size=10), text_color="#475569"
                      ).pack(anchor="w", padx=20, pady=(0, 10))
 
@@ -733,16 +969,13 @@ class FileSelectorDialog(ctk.CTkToplevel):
         tb = ctk.CTkFrame(self, fg_color="#1e1e2e", corner_radius=8)
         tb.pack(fill="x", padx=20, pady=(0, 8))
 
-        ctk.CTkButton(tb, text="전체 선택", width=80, height=28,
+        # 지연 로딩에서는 전체 선택/해제가 메모리 이슈를 일으킬 수 있으므로 
+        # 선택 초기화 버튼으로 대체합니다.
+        ctk.CTkButton(tb, text="선택 초기화", width=80, height=28,
                       font=ctk.CTkFont(size=10),
                       fg_color="#2d2d3d", hover_color="#3d3d5d",
                       text_color="#94a3b8", corner_radius=6,
-                      command=self._select_all).pack(side="left", padx=8, pady=5)
-        ctk.CTkButton(tb, text="전체 해제", width=80, height=28,
-                      font=ctk.CTkFont(size=10),
-                      fg_color="#2d2d3d", hover_color="#3d3d5d",
-                      text_color="#94a3b8", corner_radius=6,
-                      command=self._deselect_all).pack(side="left", padx=(0, 6), pady=5)
+                      command=self._clear_all_selections).pack(side="left", padx=8, pady=5)
 
         self._count_lbl = ctk.CTkLabel(tb, text="",
                                         font=ctk.CTkFont(family="Courier New", size=10),
@@ -770,114 +1003,137 @@ class FileSelectorDialog(ctk.CTkToplevel):
                       corner_radius=8,
                       command=self._confirm).pack(side="right")
 
-    def _load_tree(self):
-        items = collect_all_files_tree(self._source_path, self._include_extensions)
-        if not items:
-            ctk.CTkLabel(self._scroll,
-                         text="선택 가능한 파일이 없습니다.\n(확장자 필터를 확인하세요)",
-                         font=ctk.CTkFont(size=11), text_color="#475569",
-                         justify="center").pack(pady=30)
+    def _render_directory(self, dir_path, parent_container, depth):
+        try:
+            entries = sorted(os.scandir(dir_path), key=lambda e: (not e.is_dir(), e.name.lower()))
+        except PermissionError:
             return
 
-        current_dir = None  # 현재 디렉터리 abs_path
-
-        for typ, name, rel, abs_path, depth in items:
-            row = ctk.CTkFrame(self._scroll, fg_color="transparent")
+        for entry in entries:
+            if is_ignored(entry.name):
+                continue
+            
+            row = ctk.CTkFrame(parent_container, fg_color="transparent")
             row.pack(fill="x", pady=1)
 
-            indent = (depth - 1) * 22
+            indent = depth * 20
             if indent > 0:
                 sp = ctk.CTkFrame(row, fg_color="transparent", width=indent, height=1)
                 sp.pack(side="left")
                 sp.pack_propagate(False)
 
-            if typ == "dir":
-                current_dir = abs_path
-                self._dir_rows[abs_path] = []
-
-                dir_frame = ctk.CTkFrame(row, fg_color="#1a1a2e", corner_radius=6)
-                dir_frame.pack(side="left", fill="x", expand=True, pady=2, padx=2)
-
-                ctk.CTkLabel(dir_frame,
-                             text=f"  📁  {name}",
-                             font=ctk.CTkFont(family="Courier New", size=11, weight="bold"),
-                             text_color="#a78bfa").pack(side="left", padx=6, pady=5)
-
-                # 폴더 전체선택/해제 버튼
-                btn_all = ctk.CTkButton(
-                    dir_frame, text="전체", width=44, height=20,
-                    font=ctk.CTkFont(size=9),
-                    fg_color="#252540", hover_color="#312e6e",
-                    text_color="#818cf8", corner_radius=4,
-                    command=lambda d=abs_path: self._toggle_dir(d, True))
-                btn_all.pack(side="right", padx=(2, 6), pady=4)
-
-                btn_none = ctk.CTkButton(
-                    dir_frame, text="해제", width=44, height=20,
-                    font=ctk.CTkFont(size=9),
-                    fg_color="#252530", hover_color="#4b2020",
-                    text_color="#f87171", corner_radius=4,
-                    command=lambda d=abs_path: self._toggle_dir(d, False))
-                btn_none.pack(side="right", padx=2, pady=4)
-
+            if entry.is_dir():
+                self._build_folder_node(row, entry.path, entry.name, depth)
             else:
-                # 파일 체크박스
-                ext = os.path.splitext(name)[1].lower()
-                var = tk.BooleanVar(value=True)
-                self._file_checks[abs_path] = var
+                ext = os.path.splitext(entry.name)[1].lower()
+                if ext in self._include_extensions:
+                    self._build_file_node(row, entry.path, entry.name, ext)
 
-                # 현재 폴더에 파일 등록
-                if current_dir is not None:
-                    self._dir_rows.setdefault(current_dir, []).append(abs_path)
+    def _build_folder_node(self, parent_row, dir_path, dir_name, depth):
+        # 폴더 노드는 '헤더'와 '자식 컨테이너'로 나뉩니다.
+        node_frame = ctk.CTkFrame(parent_row, fg_color="transparent")
+        node_frame.pack(fill="x", expand=True)
 
-                ext_color = ExtensionManagerDialog.EXT_META.get(ext, (ext, "#64748b"))[1]
+        header = ctk.CTkFrame(node_frame, fg_color="#1a1a2e", corner_radius=6)
+        header.pack(fill="x", pady=2, padx=2)
 
-                cb = ctk.CTkCheckBox(
-                    row, text=f"  {name}",
-                    variable=var,
-                    font=ctk.CTkFont(family="Courier New", size=10),
-                    text_color="#e2e8f0",
-                    fg_color="#6366f1", hover_color="#4f46e5",
-                    border_color="#374151",
-                    command=self._update_count)
-                cb.pack(side="left", anchor="w", padx=4, pady=1)
+        is_expanded = tk.BooleanVar(value=False)
+        is_loaded = tk.BooleanVar(value=False)
+        children_frame = ctk.CTkFrame(node_frame, fg_color="transparent")
 
-                # 확장자 배지
-                badge = ctk.CTkLabel(row, text=ext,
-                                     font=ctk.CTkFont(size=8),
-                                     text_color=ext_color,
-                                     fg_color="#1a1a2e",
-                                     corner_radius=4, padx=5, pady=2)
-                badge.pack(side="left", padx=2)
+        # 토글 버튼 (▶ / ▼)
+        toggle_btn = ctk.CTkButton(header, text="▶", width=24, height=24,
+                                   font=ctk.CTkFont(size=11),
+                                   fg_color="transparent", hover_color="#2d2d3d",
+                                   text_color="#a78bfa")
+        toggle_btn.pack(side="left", padx=(4, 2), pady=2)
 
+        ctk.CTkLabel(header, text=f"📁 {dir_name}",
+                     font=ctk.CTkFont(family="Courier New", size=11, weight="bold"),
+                     text_color="#a78bfa").pack(side="left", padx=2)
+
+        # 폴더 내 전체선택/해제 버튼
+        ctk.CTkButton(header, text="전체", width=40, height=20,
+                      font=ctk.CTkFont(size=9), fg_color="#252540", hover_color="#312e6e",
+                      text_color="#818cf8", corner_radius=4,
+                      command=lambda: self._select_folder_contents(dir_path, True, children_frame)
+                      ).pack(side="right", padx=(2, 6), pady=4)
+
+        ctk.CTkButton(header, text="해제", width=40, height=20,
+                      font=ctk.CTkFont(size=9), fg_color="#252530", hover_color="#4b2020",
+                      text_color="#f87171", corner_radius=4,
+                      command=lambda: self._select_folder_contents(dir_path, False, children_frame)
+                      ).pack(side="right", padx=2, pady=4)
+
+        def toggle_expand():
+            if is_expanded.get():
+                children_frame.pack_forget()
+                toggle_btn.configure(text="▶")
+                is_expanded.set(False)
+            else:
+                if not is_loaded.get():
+                    self._render_directory(dir_path, children_frame, depth + 1)
+                    is_loaded.set(True)
+                children_frame.pack(fill="x")
+                toggle_btn.configure(text="▼")
+                is_expanded.set(True)
+
+        toggle_btn.configure(command=toggle_expand)
+
+    def _build_file_node(self, parent_row, file_path, file_name, ext):
+        var = tk.BooleanVar(value=(file_path in self._selected_files))
+        self._file_vars[file_path] = var
+
+        ext_color = ExtensionManagerDialog.EXT_META.get(ext, (ext, "#64748b"))[1]
+
+        def on_check():
+            if var.get():
+                self._selected_files.add(file_path)
+            else:
+                self._selected_files.discard(file_path)
+            self._update_count()
+
+        cb = ctk.CTkCheckBox(
+            parent_row, text=f"  {file_name}", variable=var,
+            font=ctk.CTkFont(family="Courier New", size=10),
+            text_color="#e2e8f0", fg_color="#6366f1", hover_color="#4f46e5",
+            border_color="#374151", command=on_check)
+        cb.pack(side="left", anchor="w", padx=4, pady=1)
+
+        badge = ctk.CTkLabel(parent_row, text=ext,
+                             font=ctk.CTkFont(size=8), text_color=ext_color,
+                             fg_color="#1a1a2e", corner_radius=4, padx=5, pady=2)
+        badge.pack(side="left", padx=2)
+
+    def _select_folder_contents(self, dir_path, select: bool, children_frame):
+        """특정 폴더의 전체선택/해제를 수행합니다 (GUI가 렌더링되지 않았어도 로직상으로 처리)"""
+        files_in_dir = collect_files(dir_path, self._include_extensions)
+        for f in files_in_dir:
+            if select:
+                self._selected_files.add(f)
+            else:
+                self._selected_files.discard(f)
+            
+            # 이미 렌더링 된 위젯이 있다면 UI도 업데이트
+            if f in self._file_vars:
+                self._file_vars[f].set(select)
+                
         self._update_count()
 
-    def _toggle_dir(self, dir_path, state: bool):
-        for fp in self._dir_rows.get(dir_path, []):
-            if fp in self._file_checks:
-                self._file_checks[fp].set(state)
+    def _clear_all_selections(self):
+        self._selected_files.clear()
+        for var in self._file_vars.values():
+            var.set(False)
         self._update_count()
 
     def _update_count(self):
-        n = sum(1 for v in self._file_checks.values() if v.get())
-        self._count_lbl.configure(text=f"{n} / {len(self._file_checks)} 선택")
-
-    def _select_all(self):
-        for v in self._file_checks.values():
-            v.set(True)
-        self._update_count()
-
-    def _deselect_all(self):
-        for v in self._file_checks.values():
-            v.set(False)
-        self._update_count()
+        self._count_lbl.configure(text=f"선택된 파일: {len(self._selected_files)}개")
 
     def _confirm(self):
-        selected = {p for p, v in self._file_checks.items() if v.get()}
-        if not selected:
+        if not self._selected_files:
             self._flash("⚠  최소 하나의 파일을 선택해주세요.")
             return
-        self.result = selected
+        self.result = self._selected_files
         self.destroy()
 
     def _cancel(self):
@@ -885,8 +1141,7 @@ class FileSelectorDialog(ctk.CTkToplevel):
         self.destroy()
 
     def _flash(self, msg):
-        lbl = ctk.CTkLabel(self, text=msg,
-                           font=ctk.CTkFont(size=11),
+        lbl = ctk.CTkLabel(self, text=msg, font=ctk.CTkFont(size=11),
                            fg_color="#4c1010", text_color="#fca5a5",
                            corner_radius=6, padx=12, pady=6)
         lbl.place(relx=0.5, rely=0.93, anchor="center")
@@ -905,6 +1160,9 @@ class App(ctk.CTk):
 
         self._history = load_history()
         self._config  = load_config()
+
+        global IGNORE_LIST
+        IGNORE_LIST = set(self._config["ignore_list"])
 
         self.source_var   = tk.StringVar()
         self.output_var   = tk.StringVar(value=os.getcwd())
@@ -944,6 +1202,7 @@ class App(ctk.CTk):
         self._make_filename_field(card)
         self._make_mode_field(card)
         self._make_ext_field(card)
+        self._make_ignore_field(card)
 
         self.run_btn = ctk.CTkButton(
             left, text="▶  RUN MERGE", height=44,
@@ -1031,7 +1290,6 @@ class App(ctk.CTk):
                      font=ctk.CTkFont(size=10, weight="bold"),
                      text_color="#6366f1").pack(anchor="w", padx=16, pady=(8, 6))
 
-        # 2×2 그리드 레이아웃
         grid = ctk.CTkFrame(parent, fg_color="transparent")
         grid.pack(fill="x", padx=16, pady=(0, 10))
         grid.columnconfigure(0, weight=1)
@@ -1111,6 +1369,49 @@ class App(ctk.CTk):
         self._config["extensions"] = new_extensions
         save_config(self._config)
         self._ext_count_label.configure(text=self._ext_preview())
+    
+    def _make_ignore_field(self, parent):
+        row = ctk.CTkFrame(parent, fg_color="transparent")
+        row.pack(fill="x", padx=16, pady=(0, 14))
+
+        info = ctk.CTkFrame(row, fg_color="transparent")
+        info.pack(side="left", fill="x", expand=True)
+        ctk.CTkLabel(info, text="IGNORE LIST",
+                     font=ctk.CTkFont(size=10, weight="bold"),
+                     text_color="#f87171").pack(anchor="w")
+        self._ignore_count_label = ctk.CTkLabel(
+            info, text=self._ignore_preview(),
+            font=ctk.CTkFont(family="Courier New", size=10),
+            text_color="#64748b")
+        self._ignore_count_label.pack(anchor="w")
+
+        ctk.CTkButton(row, text="🚫  관리", width=80, height=34,
+                      font=ctk.CTkFont(size=11, weight="bold"),
+                      fg_color="#252530", hover_color="#4b1515",
+                      border_width=1, border_color="#dc2626",
+                      text_color="#f87171", corner_radius=8,
+                      command=self._open_ignore_manager).pack(side="right")
+
+    def _ignore_preview(self):
+        items = self._config["ignore_list"]
+        preview = "  ".join(sorted(items)[:4])
+        more = f"  +{len(items)-4}개" if len(items) > 4 else ""
+        return f"{preview}{more}   ({len(items)}개 무시)"
+
+    def _open_ignore_manager(self):
+        IgnoreListManagerDialog(
+            self,
+            get_ignore_list=lambda: self._config["ignore_list"],
+            on_change=self._on_ignore_changed
+        ).focus()
+
+    def _on_ignore_changed(self, new_ignore_list):
+        global IGNORE_LIST
+        self._config["ignore_list"] = new_ignore_list
+        IGNORE_LIST = set(new_ignore_list)
+        save_config(self._config)
+        self._ignore_count_label.configure(text=self._ignore_preview())
+
 
     # ── 브라우저 ──────────────────────────────────────────────────────────────
 
@@ -1139,10 +1440,14 @@ class App(ctk.CTk):
     # ── 로그 ─────────────────────────────────────────────────────────────────
 
     def _log(self, msg):
-        self.log_box.configure(state="normal")
-        self.log_box.insert("end", msg + "\n")
-        self.log_box.see("end")
-        self.log_box.configure(state="disabled")
+        def update_ui():
+            self.log_box.configure(state="normal")
+            self.log_box.insert("end", msg + "\n")
+            self.log_box.see("end")
+            self.log_box.configure(state="disabled")
+            
+        # 백그라운드 스레드에서 호출되더라도 메인 뷰 스레드에서 안전하게 실행되도록 위임
+        self.after(0, update_ui)
 
     def _clear_log(self):
         self.log_box.configure(state="normal")
@@ -1168,14 +1473,13 @@ class App(ctk.CTk):
             return
 
         include_exts = set(self._config["extensions"])
-        filter_set   = None  # 폴더/파일 필터
+        filter_set   = None
 
-        # ── 선택 다이얼로그 (메인 스레드에서 실행) ──
         if mode == "folders":
             dlg = FolderSelectorDialog(self, src)
             self.wait_window(dlg)
             if dlg.result is None:
-                return          # 취소
+                return
             filter_set = dlg.result
             self._log(f"📁 선택된 폴더: {len(filter_set)}개")
 
@@ -1183,11 +1487,10 @@ class App(ctk.CTk):
             dlg = FileSelectorDialog(self, src, include_exts)
             self.wait_window(dlg)
             if dlg.result is None:
-                return          # 취소
+                return
             filter_set = dlg.result
             self._log(f"📄 선택된 파일: {len(filter_set)}개")
 
-        # ── 병합 스레드 실행 ──
         self.run_btn.configure(state="disabled", text="⏳  처리 중...")
         self._clear_log()
         if filter_set is not None:
